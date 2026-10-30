@@ -1,0 +1,22 @@
+---
+version: 2
+updates:
+  # A 7-day cooldown gives a compromised release time to be caught before Dependabot proposes it. The prefix gives a
+  # "chore(deps):" header, with a scope from CLAUDE.md.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: "wednesday"
+      time: "01:00"
+      timezone: "Etc/UTC"
+    allow:
+      - dependency-type: "all"
+    commit-message:
+      prefix: "chore(deps)"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"

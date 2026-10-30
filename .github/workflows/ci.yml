@@ -36,7 +36,7 @@ jobs:
           script: |
             // A change only to these can't change the config or how it's checked, so it skips the checks.
             // List what's safe to skip rather than what needs testing, so a new kind of file is tested until it's added here.
-            const DOCS = ['.claude/', 'LICENSE', 'docs/'];
+            const DOCS = ['.claude/', '.github/dependabot.yml', 'LICENSE', 'docs/'];
             // The end-to-end tests only need a change to what an instance runs, or to the end-to-end job and its scripts.
             const E2E = ['.gitattributes', '.github/scripts/', '.github/workflows/', 'src/'];
             const under = (p, list) => list.some((s) => (s.endsWith('/') ? p.startsWith(s) : p === s));
