@@ -17,22 +17,20 @@ How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull requ
 
 ## Overview
 
-`ci.yml` runs on every PR to `main`. A maintainer squash-merges the PR once `CI result` passes and every review thread is resolved. This flowchart shows the jobs:
+`ci.yml` runs on every PR to `main` that changes more than docs. A maintainer squash-merges the PR once the workflow passes and every review thread is resolved. This flowchart shows the jobs:
 
 ```mermaid
 flowchart LR
     accTitle: The jobs that run on a pull request
-    accDescr: The changes job decides whether the PR changes code, and whether it could change what an instance runs. The checks job lints and validates the user-data when code changed. When the checks pass and an instance could run differently, the e2e job installs an instance on Windows runners. The code-review job runs Claude when those passed or weren't needed. The result job fails unless every job passed or was skipped.
-    pr["Pull request to main"] -->|opened or pushed| changes["changes"]
-    changes -->|code changed| checks["checks: ShellCheck, shfmt, validator"]
-    checks -->|"passed, and src/ or CI changed"| e2e["e2e: windows-2025, two cases"]
-    checks -->|"passed or skipped"| review["code-review: Claude"]
-    e2e -->|"passed or skipped"| review
-    review -->|every job's result| result["CI result"]
+    accDescr: A pull request that changes more than docs starts the workflow. The checks job lints and validates the user-data. When the checks pass, the e2e job installs an instance on Windows runners. When both pass, the code-review job runs Claude, which comments on the pull request.
+    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: ShellCheck, shfmt, validator"]
+    checks -->|passed| e2e["e2e: windows-2025, two cases"]
+    e2e -->|passed| review["code-review: Claude"]
+    review -->|comments| pr
 ```
 
-- **`changes`** lists the PR's files. A PR that only changes Markdown, `docs/`, `.claude/`, `.github/dependabot.yml` or `LICENSE` skips the checks. Only a PR that changes `src/`, `.github/workflows/`, `.github/scripts/` or `.gitattributes` runs the end-to-end tests. The lists name what's safe to skip, so a new kind of file is checked until it's added to them.
-- **`CI result`** fails unless every job passed or was skipped, so it's the one check to read before merging.
+- **`paths-ignore`** on the `pull_request` trigger skips the whole workflow when every file a PR changes is Markdown, or under `docs/`, `.claude/` or `.vscode/`, or is `.github/dependabot.yml` or `LICENSE`. The list names what's safe to skip, so a new kind of file is checked until it's added to it.
+- Each job needs the one before it, so a failure skips the rest, and the workflow's own result is the one check to read before merging.
 
 ## Checks
 
@@ -77,7 +75,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 ## Set up
 
 - **`CLAUDE_CODE_OAUTH_TOKEN`**, a repository secret, bills Claude's runs to the maintainer's Claude subscription. Make it with `claude setup-token` and save it with `gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Without it, the review is skipped with a notice.
-- **The `Protect main` ruleset** requires squash merges, signed commits, linear history and resolved review threads. It requires no status checks, so a maintainer checks `CI result` before merging.
+- **The `Protect main` ruleset** requires squash merges, signed commits, linear history and resolved review threads. It requires no status checks, so a maintainer checks the CI workflow passed before merging.
 - **Issues and PRs** are limited to collaborators.
 
 ## Security
@@ -94,6 +92,8 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - **The meta-data template, filled in.** The e2e job fills in `src/Ubuntu-26.04.meta-data` rather than using a fixture, so the shipped defaults, such as the gh extension, are tested too.
 - **Fail on recoverable errors.** A deprecated key or a schema warning means user-data that needs fixing. The exception is one the image causes: Ubuntu 26.04's WSL image masks `systemd-networkd-wait-online.service`, which cloud-init tries to start before it installs packages, so every instance that installs packages reports "Failed to wait for network" (observed).
 - **The code review after the tests.** No tokens go on code that doesn't pass its checks, end-to-end included.
+- **GitHub's path filter, not a job that lists the files.** `paths-ignore` is built in, but it can only run all of the workflow or none of it. Every PR that changes more than docs gets the end-to-end tests, even when it only changes `tests/`, and a docs-only PR gets no checks or review.
+- **No gate job.** GitHub marks the workflow failed when any job fails, and no status check is required, so a job that sums up the others adds nothing.
 - **Resolved threads, not a failing check.** A wrong finding is resolved with a reply rather than a re-run. That's why Nits are capped.
 
 ## Limits
@@ -104,6 +104,8 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - The e2e job downloads Ubuntu and every package on each run, so it takes a while and depends on those servers.
 - The review is Claude's judgement, so it can be wrong. The Nit limits are in the prompt, so nothing enforces them.
 - Nothing stops a maintainer merging a PR whose checks failed, because none are required.
+- A docs-only PR isn't reviewed, so nothing checks that its docs still match the code.
+- A PR whose checks are skipped has no workflow run at all, so its checks list is empty rather than skipped.
 
 ## Sources
 

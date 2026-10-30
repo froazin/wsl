@@ -33,4 +33,4 @@ To test a real first boot, install a throwaway instance as the README's [Testing
 
 ## CI
 
-Every pull request to `main` runs the checks above. One that changes `src/` or CI also installs an instance on Windows runners, with and without a user, and checks what the config set up. Claude then reviews the change by [REVIEW.md](REVIEW.md) and comments on the pull request. A pull request merges once `CI result` passes and every review thread is resolved. [docs/ci.md](docs/ci.md) describes each job.
+Every pull request to `main` that changes more than docs runs the checks above, then installs an instance on Windows runners, with and without a user, and checks what the config set up. Claude then reviews the change by [REVIEW.md](REVIEW.md) and comments on the pull request. A pull request merges once CI passes and every review thread is resolved. [docs/ci.md](docs/ci.md) describes each job.

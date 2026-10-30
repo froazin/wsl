@@ -15,7 +15,7 @@ Mark a finding Important only when the change would do one of these:
 - Fetch something at boot over plain HTTP, run a downloaded script as root that could run as the user, or replace the embedded GitHub CLI apt key with one fetched at boot.
 - Change the `packages` list without keeping it in step with the dotfiles modules' dependencies, as `CLAUDE.md` says.
 - Make the README's install steps wrong, or make a design doc, the README, `CONTRIBUTING.md`, `CLAUDE.md` or this file say something about the code that's false after the change, so that someone following it would do the wrong thing.
-- Make CI skip a check that the change needs, such as a path added to `DOCS` in `.github/workflows/ci.yml` that the checks read, or a path missing from `E2E` that changes what an instance runs. Drop or narrow a check that the `checks` or `e2e` job runs, or let the `CI result` job pass when a job it needs failed. `docs/ci.md` describes how CI should work.
+- Make CI skip a check that the change needs, such as a path added to `paths-ignore` in `.github/workflows/ci.yml` that the checks read or that changes what an instance runs. Drop or narrow a check that the `checks` or `e2e` job runs, or let a job run when one it needs failed. `docs/ci.md` describes how CI should work.
 - Widen what the Claude run in CI can do, such as its `permissions`, its `github_token`, its `--allowedTools` or its `--disallowedTools`, past what the "Security" section of `docs/ci.md` allows, even when the change updates that doc too. Give `CLAUDE_CODE_OAUTH_TOKEN`, or a token that can write, to a step that runs the PR's code.
 - Use an action without pinning it to a full commit SHA with its version in a comment, pin one to a release less than 7 days old, or shorten the 7-day Dependabot cooldown.
 
@@ -50,8 +50,8 @@ These are the rules that no tool, test or check enforces.
 
 ### CI
 
-- A new job in `ci.yml` is in the `needs` list of the `CI result` job.
-- A new path that the checks read isn't covered by `DOCS` in `ci.yml`, and a new path that changes what an instance runs is covered by `E2E`.
+- A new job in `ci.yml` needs the jobs whose results it depends on, so it doesn't run after one of them failed.
+- A new path that the checks read, or that changes what an instance runs, isn't covered by `paths-ignore` in `ci.yml`.
 - A change to this file's severities, its Nit cap or what it says about pre-existing issues also changes the code review's prompt in `.github/workflows/ci.yml`, and the other way round.
 
 ## Evidence

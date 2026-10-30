@@ -157,7 +157,7 @@ flowchart TD
 
 [`tests/validate-user-data.sh`](../tests/validate-user-data.sh) renders the template with `cloud-init devel render` against mock meta-data, runs `cloud-init schema` on each result and checks it. Its cases and checks are listed in the [validate-user-data skill](../.claude/skills/validate-user-data/SKILL.md). Add a case for every new meta-data key or conditional, including the key being unset.
 
-It doesn't prove a real first boot. Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. CI's [end-to-end tests](ci.md#end-to-end-tests) install one on Windows runners for each pull request that changes `src/`, though without the OOBE.
+It doesn't prove a real first boot. Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. CI's [end-to-end tests](ci.md#end-to-end-tests) install one on Windows runners for each pull request that changes more than docs, though without the OOBE.
 
 ## Limits
 
