@@ -31,7 +31,7 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 - **Don't write outside the repository to test.** Writing to the Windows profile (`%USERPROFILE%\.cloud-init`, `.wslconfig`), or installing or unregistering WSL instances, needs the user's go-ahead.
 - Run the checks in [CONTRIBUTING.md](CONTRIBUTING.md#checks) before you say a change works.
 - Pin every action a workflow uses to a full commit SHA, with its version in a comment.
-- **Squash-merge a pull request once `CI result` passes and every review thread is resolved.** Resolve a thread only after you've fixed what it raises, or replied with why it isn't a problem.
+- **Squash-merge a pull request once the CI workflow passes, or didn't run because the pull request only changes docs, and every review thread is resolved.** Resolve a thread only after you've fixed what it raises, or replied with why it isn't a problem.
 - When you review a change locally, such as with `/code-review`, also follow `REVIEW.md` as it is on `main` (`git show main:REVIEW.md`), not a copy the change edits.
 - Update the design doc in `docs/`, and the README when users would notice, in the same pull request as the change that makes them out of date.
 - Write in British English.
@@ -45,6 +45,6 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 - **Commit scopes:** `cloud-init`, `wslconfig`, `ci`, `docs`, `claude`, `deps`.
 - **Feature flags:** none.
 - **Releases:** none. `main` is what people copy.
-- **CI:** `ci.yml` on every pull request to `main`, with the end-to-end tests when a pull request could change what an instance runs. See [docs/ci.md](docs/ci.md).
+- **CI:** `ci.yml` on every pull request to `main` that changes more than docs. See [docs/ci.md](docs/ci.md).
 - User docs live in `README.md`. The repository has no wiki.
 - Issues and pull requests are limited to collaborators, because the config runs as root on their machines.
