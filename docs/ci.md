@@ -51,7 +51,7 @@ Each step is a script in `.github/scripts/`:
 1. **`set-up-wslconfig.ps1`** writes `src/.wslconfig` to the runner's profile without `processors` and `memory`, which size the virtual machine for a workstation, and without `networkingMode`. The runner doesn't support mirrored networking, and WSL falls back to no network at all (observed), so the instance keeps WSL's default NAT. It then runs `wsl --shutdown` so WSL reads the file.
 1. **`seed-cloud-init.ps1`** copies the user-data to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data`, and writes the meta-data template there with the case's values filled into its empty keys.
 1. **`install-instance.ps1`** runs `wsl --install Ubuntu-26.04 --no-launch --web-download`.
-1. **`wait-for-cloud-init.ps1`** runs `cloud-init status --wait` as root, which boots the instance for the first time, then shows cloud-init's status and logs. It fails if cloud-init didn't use the WSL datasource, or reports any error or recoverable error in `result.json` or `cloud-init status --format json`.
+1. **`wait-for-cloud-init.ps1`** runs `cloud-init status --wait` as root, which boots the instance for the first time, then shows cloud-init's status and logs. It fails if cloud-init didn't use the WSL datasource, or reports any error or recoverable error in `result.json` or `cloud-init status --format json`. A recoverable error that Ubuntu's WSL image causes whatever the user-data says only warns. The script lists them in `$imageErrors`.
 1. **`restart-instance.ps1`** runs `wsl --terminate`, as the README says to, then fails unless `systemctl is-system-running --wait` says `running`.
 1. **`check-instance.ps1`** runs [`check-instance.sh`](../.github/scripts/check-instance.sh) as root inside the instance. It checks the system files, packages, links, units, shells and dotfiles, and for the `with a user` case the user, their groups, git config, tools and gh extension.
 
@@ -87,7 +87,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 
 - **A raw runner, not a setup action.** The e2e job installs the instance with `wsl.exe` as a user would, so it tests the README's steps rather than an action's.
 - **The meta-data template, filled in.** The e2e job fills in `src/Ubuntu-26.04.meta-data` rather than using a fixture, so the shipped defaults, such as the gh extension, are tested too.
-- **Fail on recoverable errors.** A deprecated key or a schema warning means user-data that needs fixing.
+- **Fail on recoverable errors.** A deprecated key or a schema warning means user-data that needs fixing. The exception is one the image causes: Ubuntu 26.04's WSL image masks `systemd-networkd-wait-online.service`, which cloud-init tries to start before it installs packages, so every instance that installs packages reports "Failed to wait for network" (observed).
 - **The code review after the tests.** No tokens go on code that doesn't pass its checks, end-to-end included.
 - **Resolved threads, not a failing check.** A wrong finding is resolved with a reply rather than a re-run. That's why Nits are capped.
 

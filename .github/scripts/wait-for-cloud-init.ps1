@@ -34,8 +34,8 @@ Write-Output '::group::cloud-init-output.log'
 InInstance tail -n 500 /var/log/cloud-init-output.log
 Write-Output '::endgroup::'
 
-# cloud-init status exits 1 for an error and 2 for a recoverable error.
-if ($waited -ne 0) { Report error "cloud-init status --wait exited with $waited." }
+# cloud-init status exits 1 for an error and 2 for a recoverable error. The recoverable errors are judged one by one below.
+if ($waited -ne 0 -and $waited -ne 2) { Report error "cloud-init status --wait exited with $waited." }
 
 # result.json is written when cloud-init's last stage finishes. It leaves recoverable errors out, so status adds them.
 $result = (InInstance cat /var/lib/cloud/data/result.json) -join "`n"
@@ -48,12 +48,25 @@ if ($LASTEXITCODE -ne 0 -or -not $result) {
     foreach ($e in @($v1.errors)) { if ($e) { Report error $e } }
 }
 
+# Recoverable errors that Ubuntu's WSL image causes whatever the user-data says, which only warn. The image masks
+# systemd-networkd-wait-online.service, which cloud-init tries to start before it installs packages (observed).
+$imageErrors = @(
+    'Failed to wait for network: (?s).*systemd-networkd-wait-online\.service is masked'
+)
+
 $status = (InInstance cloud-init status --format json) -join "`n" | ConvertFrom-Json
 foreach ($e in @($status.errors)) { if ($e) { Report error $e } }
 if ($status.recoverable_errors) {
     foreach ($level in $status.recoverable_errors.PSObject.Properties) {
-        foreach ($e in @($level.Value)) { if ($e) { Report error "Recoverable $($level.Name): $e" } }
+        foreach ($e in @($level.Value)) {
+            if (-not $e) { continue }
+            $fromImage = @($imageErrors | Where-Object { $e -match $_ }).Count -gt 0
+            Report ($fromImage ? 'warning' : 'error') "Recoverable $($level.Name): $e"
+        }
     }
+}
+if ($waited -eq 2 -and -not $status.recoverable_errors) {
+    Report error 'cloud-init status --wait exited with 2, but cloud-init status lists no recoverable errors.'
 }
 
 if ($failed) { exit 1 }
