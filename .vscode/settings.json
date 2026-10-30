@@ -1,6 +1,7 @@
 {
 	"files.associations": {
-		"**/src/*.*-data": "jinja-yaml",
-		"**/.wslconfig": "toml"
+		"*.user-data": "jinja-yaml",
+    "*.meta-data": "jinja-yaml",
+		"*.wslconfig": "jinja-toml"
 	}
 }

@@ -1,0 +1,36 @@
+[project]
+name = "wsl"
+version = "0"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "invoke>=3.0.3",
+    "jinja2>=3.1.6",
+    "pyright[nodejs]>=1.1.414",
+    "pytest>=9.1.1",
+    "python-semantic-release>=10.7.0",
+    "ruff>=0.17.1",
+]
+
+[tool.uv]
+package = false
+exclude-newer = "7 days"
+python-downloads = "never"
+python-preference = "only-system"
+
+[tool.pytest.ini_options]
+minversion = "9.1"
+testpaths = ["devel"]
+# devel/hooks holds hook scripts, which the tests import as top-level modules.
+pythonpath = [".", "devel/hooks"]
+# Test files in different packages can share a name, such as test_testing.py, so import them by path.
+addopts = ["-ra", "-q", "-p", "no:cacheprovider", "--import-mode=importlib"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
