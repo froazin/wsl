@@ -71,3 +71,5 @@ if ($waited -eq 2 -and -not $status.recoverable_errors) {
 
 if ($failed) { exit 1 }
 Write-Output "cloud-init finished: $($status.extended_status)"
+# The runner exits with $LASTEXITCODE, which is cloud-init status's 2 for an image error that only warns.
+exit 0
