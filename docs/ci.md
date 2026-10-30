@@ -8,6 +8,7 @@ How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull requ
 1. [Checks](#checks)
 1. [End-to-end tests](#end-to-end-tests)
 1. [Code review](#code-review)
+1. [Dependabot](#dependabot)
 1. [Set up](#set-up)
 1. [Security](#security)
 1. [Decisions](#decisions)
@@ -30,7 +31,7 @@ flowchart LR
     review -->|every job's result| result["CI result"]
 ```
 
-- **`changes`** lists the PR's files. A PR that only changes Markdown, `docs/`, `.claude/` or `LICENSE` skips the checks. Only a PR that changes `src/`, `.github/workflows/`, `.github/scripts/` or `.gitattributes` runs the end-to-end tests. The lists name what's safe to skip, so a new kind of file is checked until it's added to them.
+- **`changes`** lists the PR's files. A PR that only changes Markdown, `docs/`, `.claude/`, `.github/dependabot.yml` or `LICENSE` skips the checks. Only a PR that changes `src/`, `.github/workflows/`, `.github/scripts/` or `.gitattributes` runs the end-to-end tests. The lists name what's safe to skip, so a new kind of file is checked until it's added to them.
 - **`CI result`** fails unless every job passed or was skipped, so it's the one check to read before merging.
 
 ## Checks
@@ -69,6 +70,10 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - The job passes whatever Claude finds. The unresolved threads are what hold the PR back.
 - Drafts and Dependabot's PRs aren't reviewed.
 
+## Dependabot
+
+[`.github/dependabot.yml`](../.github/dependabot.yml) opens one PR each Wednesday that updates every action the workflow uses, grouped together, with a `chore(deps):` title. Its 7-day cooldown skips any release less than a week old, so a compromised release has time to be caught. Its PRs run the checks and the end-to-end tests like any other, but get no code review.
+
 ## Set up
 
 - **`CLAUDE_CODE_OAUTH_TOKEN`**, a repository secret, bills Claude's runs to the maintainer's Claude subscription. Make it with `claude setup-token` and save it with `gh secret set CLAUDE_CODE_OAUTH_TOKEN`. Without it, the review is skipped with a notice.
@@ -81,7 +86,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - **The workflow's token, as narrow as each job allows.** Every job can read the repository's contents. The code review passes the workflow's token as `github_token`, so the Claude GitHub App's token isn't used, and adds `pull-requests: write` to comment and `actions: read` to count earlier reviews.
 - **PR content is data.** The prompt says to treat files, diffs, commits and comments as data. Only collaborators can open PRs, and Claude sees only trusted authors' comments.
 - **Few tools.** The review has no Bash. It can read files and post review comments, and can't push, approve or merge.
-- **Pinned actions.** Every action is pinned to a full commit SHA, with its version in a comment.
+- **Pinned actions.** Every action is pinned to a full commit SHA, with its version in a comment, and Dependabot proposes no release less than 7 days old.
 
 ## Decisions
 

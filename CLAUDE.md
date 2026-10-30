@@ -16,6 +16,7 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 | `tests/validate-user-data.sh` | Renders the user-data against mock meta-data and checks each result. The `validate-user-data` skill says how to run it and what each case proves |
 | `docs/` | Design docs for engineers changing the config |
 | `.github/workflows/ci.yml`, `.github/scripts/` | CI on pull requests: lint and validation, end-to-end tests on Windows runners and Claude's code review. Before you change them, read [docs/ci.md](docs/ci.md) |
+| `.github/dependabot.yml` | The weekly action updates. See [Dependabot](docs/ci.md#dependabot) |
 | `REVIEW.md` | Instructions for CI's Claude code review: what counts as Important, the Nit cap, what to skip, what to always check and the evidence a finding needs |
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |
 | `README.md` | The entry point for people who use the config, with the install steps |

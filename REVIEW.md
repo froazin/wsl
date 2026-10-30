@@ -17,7 +17,7 @@ Mark a finding Important only when the change would do one of these:
 - Make the README's install steps wrong, or make a design doc, the README, `CONTRIBUTING.md`, `CLAUDE.md` or this file say something about the code that's false after the change, so that someone following it would do the wrong thing.
 - Make CI skip a check that the change needs, such as a path added to `DOCS` in `.github/workflows/ci.yml` that the checks read, or a path missing from `E2E` that changes what an instance runs. Drop or narrow a check that the `checks` or `e2e` job runs, or let the `CI result` job pass when a job it needs failed. `docs/ci.md` describes how CI should work.
 - Widen what the Claude run in CI can do, such as its `permissions`, its `github_token`, its `--allowedTools` or its `--disallowedTools`, past what the "Security" section of `docs/ci.md` allows, even when the change updates that doc too. Give `CLAUDE_CODE_OAUTH_TOKEN`, or a token that can write, to a step that runs the PR's code.
-- Use an action without pinning it to a full commit SHA with its version in a comment, or pin one to a release less than 7 days old.
+- Use an action without pinning it to a full commit SHA with its version in a comment, pin one to a release less than 7 days old, or shorten the 7-day Dependabot cooldown.
 
 Naming, structure, refactoring ideas, comments and doc wording are Nits at most.
 
