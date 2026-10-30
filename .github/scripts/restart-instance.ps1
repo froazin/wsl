@@ -14,11 +14,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Collect the output before picking a line: Select-Object -Last stops wsl.exe early, and then $LASTEXITCODE isn't set.
-$output = & $wsl -d $Instance -u root -- systemctl is-system-running --wait
+$output = & $wsl -d $Instance -u root -e systemctl is-system-running --wait
 $state = "$($output | Select-Object -Last 1)".Trim()
 Write-Output "systemd is $state."
 if ($state -ne 'running') {
-    & $wsl -d $Instance -u root -- systemctl --failed --no-pager
+    & $wsl -d $Instance -u root -e systemctl --failed --no-pager
     Write-Output "::error title=Restart::systemd is '$state', not running."
     exit 1
 }

@@ -20,7 +20,7 @@ You need Windows with WSL 2. The config has three files:
 
 | File | Copy to | What it is |
 | --- | --- | --- |
-| [`src/.wslconfig`](src/.wslconfig) | `%USERPROFILE%\.wslconfig` | Settings for the WSL 2 virtual machine, shared by every instance. Check `processors` and `memory` fit your machine |
+| [`src/.wslconfig`](src/.wslconfig) | `%USERPROFILE%\.wslconfig` | Settings for the WSL 2 virtual machine, shared by every instance. Check `processors` and `memory` fit your machine. `networkingMode=Mirrored` needs Windows 11 22H2 or later: where it isn't supported, WSL falls back to no network, so remove the line |
 | [`src/Ubuntu-26.04.user-data`](src/Ubuntu-26.04.user-data) | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | The cloud-init config. It holds nothing personal |
 | [`src/Ubuntu-26.04.meta-data`](src/Ubuntu-26.04.meta-data) | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data` | Your username, git identity and extension lists. Fill it in, and keep your copy to yourself |
 

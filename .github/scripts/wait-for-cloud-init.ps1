@@ -13,8 +13,9 @@ function Report([string] $Level, [string] $Message) {
     if ($Level -eq 'error') { $script:failed = $true }
 }
 
+# -e runs the command without a shell, so its arguments reach it as they are.
 function InInstance {
-    & $wsl -d $Instance -u root -- @args
+    & $wsl -d $Instance -u root -e @args
 }
 
 # The first command boots the instance, and systemd starts cloud-init with the seed in place. Running a command as root

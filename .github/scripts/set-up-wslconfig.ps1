@@ -16,7 +16,8 @@ function Fail([string] $Message) {
 if ($LASTEXITCODE -ne 0) { Fail "wsl.exe --version exited with $LASTEXITCODE." }
 
 # processors and memory size the virtual machine for a workstation, not a runner, so WSL's defaults are kept for them.
-$lines = Get-Content -LiteralPath $Path | Where-Object { $_ -notmatch '^\s*(processors|memory)\s*=' }
+# The runner doesn't support mirrored networking, and WSL falls back to none at all, so it keeps the default NAT.
+$lines = Get-Content -LiteralPath $Path | Where-Object { $_ -notmatch '^\s*(processors|memory|networkingMode)\s*=' }
 $target = Join-Path $env:USERPROFILE '.wslconfig'
 Set-Content -LiteralPath $target -Value $lines
 Write-Output "Wrote ${target}:"

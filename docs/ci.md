@@ -48,7 +48,7 @@ The `e2e` job installs an instance the way the README tells users to, on a raw `
 
 Each step is a script in `.github/scripts/`:
 
-1. **`set-up-wslconfig.ps1`** writes `src/.wslconfig` to the runner's profile without `processors` and `memory`, which size the virtual machine for a workstation, then runs `wsl --shutdown` so WSL reads it.
+1. **`set-up-wslconfig.ps1`** writes `src/.wslconfig` to the runner's profile without `processors` and `memory`, which size the virtual machine for a workstation, and without `networkingMode`. The runner doesn't support mirrored networking, and WSL falls back to no network at all (observed), so the instance keeps WSL's default NAT. It then runs `wsl --shutdown` so WSL reads the file.
 1. **`seed-cloud-init.ps1`** copies the user-data to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data`, and writes the meta-data template there with the case's values filled into its empty keys.
 1. **`install-instance.ps1`** runs `wsl --install Ubuntu-26.04 --no-launch --web-download`.
 1. **`wait-for-cloud-init.ps1`** runs `cloud-init status --wait` as root, which boots the instance for the first time, then shows cloud-init's status and logs. It fails if cloud-init didn't use the WSL datasource, or reports any error or recoverable error in `result.json` or `cloud-init status --format json`.
@@ -95,7 +95,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 
 - The e2e job runs a command as root for the first boot, which skips Ubuntu's first-run setup. That setup writes the default user to `/etc/wsl.conf`, so CI doesn't test it.
 - VS Code and the other Windows tools aren't on the runner, so their links are checked but the VS Code extension installs are skipped.
-- The runner has no `processors` or `memory` from `src/.wslconfig`.
+- The runner has no `processors`, `memory` or `networkingMode` from `src/.wslconfig`, so CI doesn't test mirrored networking.
 - The e2e job downloads Ubuntu and every package on each run, so it takes a while and depends on those servers.
 - The review is Claude's judgement, so it can be wrong. The Nit limits are in the prompt, so nothing enforces them.
 - Nothing stops a maintainer merging a PR whose checks failed, because none are required.
