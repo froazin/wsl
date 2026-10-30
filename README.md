@@ -4,12 +4,14 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 
 ## What it sets up
 
-- The packages a zsh workstation needs, plus podman, a KVM and libvirt stack for running virtual machines inside WSL, and tools such as `gh`, `ripgrep`, `fd` and `btop`.
+- The packages a zsh workstation needs, plus podman and tools such as `gh`, `ripgrep`, `fd` and `btop`.
+- A KVM and libvirt stack for running virtual machines inside WSL.
 - podman's Docker-compatible API socket: rootless for every user, and the system socket for root.
 - `/etc/wsl.conf` with systemd on, and swap off to match [`.wslconfig`](src/.wslconfig).
 - Windows tools (VS Code, the 1Password CLI, OpenSSH and `clip`) linked into the Linux `PATH`, and `$BROWSER` set so `xdg-open` opens things in Windows.
 - A user with zsh and passwordless sudo, when you give a username.
-- For that user: `uv`, `pulumi`, Biome, `nvm`, Claude Code and the Claude Platform CLI (`ant`), the VS Code extensions and GitHub CLI extensions you list, and a git config with optional commit signing.
+- For that user: `uv`, `pulumi`, Biome, `nvm`, Claude Code, the Claude Platform CLI (`ant`) and the VS Code and GitHub CLI extensions you list.
+- A git config for that user, with optional commit signing.
 - The [froazin/dotfiles](https://github.com/froazin/dotfiles) zsh, git, podman and Claude Code config, for the user and for root.
 
 ## Using it
@@ -109,7 +111,7 @@ flowchart LR
 
 The design docs explain each part, for anyone changing it:
 
-- [Provisioning](docs/provisioning.md): `.wslconfig`, the user-data's stages and `runcmd`, and how it's validated.
+- [Provisioning](docs/provisioning.md): how `.wslconfig` and the user-data's stages and `runcmd` work, and how the user-data is validated.
 - [WSL meta-data](docs/meta-data.md): how each meta-data key is validated and where it ends up.
 
 ## Contributing

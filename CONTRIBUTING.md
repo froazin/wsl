@@ -1,6 +1,6 @@
 # Contributing
 
-How changes reach this repository, the checks to run before you open a pull request, and what to do if you want to change the config yourself.
+How changes reach this repository, the checks to run before you open a pull request and what to do if you want to change the config yourself.
 
 ## Issues and pull requests
 

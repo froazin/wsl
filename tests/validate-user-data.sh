@@ -3,8 +3,8 @@
 # Render src/Ubuntu-26.04.user-data against mock instance-data and validate
 # the result; `cloud-init schema` on the raw Jinja template proves nothing.
 #
-# Usage: validate.sh [path/to/Ubuntu-26.04.user-data
-#                     [path/to/Ubuntu-26.04.meta-data]]
+# Usage: tests/validate-user-data.sh [path/to/Ubuntu-26.04.user-data
+#                                     [path/to/Ubuntu-26.04.meta-data]]
 
 set -u
 
