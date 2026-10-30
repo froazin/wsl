@@ -163,6 +163,7 @@ It doesn't prove a real first boot. Only a throwaway instance, as the [README](.
 
 - `.wslconfig` holds fixed values, such as `processors=12` and `memory=32GB`, and applies to every WSL 2 instance on the machine. Another machine may need different values.
 - The user-data runs once. Changing it doesn't change an existing instance.
+- cloud-init finishes with a recoverable error, "Failed to wait for network", on every instance. The user-data is a Jinja template, not plain cloud-config, so cloud-init waits for the network at the start of its network stage by starting `systemd-networkd-wait-online.service`, which Ubuntu's WSL image masks. `cloud-init status --long` lists it, and nothing else is affected (observed).
 - The Windows tool paths are fixed. A tool installed elsewhere gets a dangling link.
 - `ant`'s architecture is chosen only for `x86_64` and `aarch64`.
 - Without a username, the user the OOBE creates gets zsh and the groups, but none of the tools, extensions or dotfiles. The [README](../README.md#without-a-username) lists the commands to finish it.
