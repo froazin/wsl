@@ -22,6 +22,7 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 | `README.md` | The entry point for people who use the config, with the install steps |
 | `CONTRIBUTING.md` | Who can open issues and pull requests, how changes land and the checks to run |
 | `.editorconfig`, `.gitattributes` | shfmt and editor settings, and LF line endings for every file |
+| `.vscode/settings.json` | Shared VS Code settings: Jinja YAML highlighting for the cloud-init files, and TOML for `.wslconfig` |
 
 ## Conventions
 
