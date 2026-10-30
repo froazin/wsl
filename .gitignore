@@ -1,0 +1,14 @@
+# Claude Code
+**/settings.local.json
+.claude/worktrees
+
+# Logs
+logs
+*.log
+
+# Environments
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
