@@ -1,0 +1,59 @@
+# Starts the instance for the first time, waits for cloud-init, shows its logs and fails on any error or recoverable error.
+param(
+    [Parameter(Mandatory)] [string] $Instance
+)
+
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$wsl = Join-Path $env:ProgramFiles 'WSL\wsl.exe'
+$failed = $false
+
+function Report([string] $Level, [string] $Message) {
+    Write-Output "::${Level} title=cloud-init::$Message"
+    if ($Level -eq 'error') { $script:failed = $true }
+}
+
+function InInstance {
+    & $wsl -d $Instance -u root -- @args
+}
+
+# The first command boots the instance, and systemd starts cloud-init with the seed in place. Running a command as root
+# skips the distribution's first-run setup. One wsl.exe process for the whole wait keeps a client attached, so WSL doesn't
+# stop the instance as idle.
+InInstance cloud-init status --wait
+$waited = $LASTEXITCODE
+
+Write-Output '::group::cloud-init status'
+InInstance cloud-init status --long
+Write-Output '::endgroup::'
+Write-Output '::group::Warnings and errors in cloud-init.log'
+InInstance grep -E 'WARNING|ERROR|Traceback' /var/log/cloud-init.log
+Write-Output '::endgroup::'
+Write-Output '::group::cloud-init-output.log'
+InInstance tail -n 500 /var/log/cloud-init-output.log
+Write-Output '::endgroup::'
+
+# cloud-init status exits 1 for an error and 2 for a recoverable error.
+if ($waited -ne 0) { Report error "cloud-init status --wait exited with $waited." }
+
+# result.json is written when cloud-init's last stage finishes. It leaves recoverable errors out, so status adds them.
+$result = (InInstance cat /var/lib/cloud/data/result.json) -join "`n"
+if ($LASTEXITCODE -ne 0 -or -not $result) {
+    Report error 'cloud-init wrote no result.json, so it never finished.'
+} else {
+    $v1 = ($result | ConvertFrom-Json).v1
+    Write-Output "Datasource: $($v1.datasource)"
+    if ($v1.datasource -notmatch 'WSL') { Report error "cloud-init used $($v1.datasource), not the WSL datasource." }
+    foreach ($e in @($v1.errors)) { if ($e) { Report error $e } }
+}
+
+$status = (InInstance cloud-init status --format json) -join "`n" | ConvertFrom-Json
+foreach ($e in @($status.errors)) { if ($e) { Report error $e } }
+if ($status.recoverable_errors) {
+    foreach ($level in $status.recoverable_errors.PSObject.Properties) {
+        foreach ($e in @($level.Value)) { if ($e) { Report error "Recoverable $($level.Name): $e" } }
+    }
+}
+
+if ($failed) { exit 1 }
+Write-Output "cloud-init finished: $($status.extended_status)"

@@ -15,6 +15,8 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 | `src/` | The three files users copy to their Windows profile: `.wslconfig`, `Ubuntu-26.04.user-data` (a Jinja cloud-config) and `Ubuntu-26.04.meta-data` (a fill-in template). Before you change them, read [docs/provisioning.md](docs/provisioning.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
 | `tests/validate-user-data.sh` | Renders the user-data against mock meta-data and checks each result. The `validate-user-data` skill says how to run it and what each case proves |
 | `docs/` | Design docs for engineers changing the config |
+| `.github/workflows/ci.yml`, `.github/scripts/` | CI on pull requests: lint and validation, end-to-end tests on Windows runners and Claude's code review. Before you change them, read [docs/ci.md](docs/ci.md) |
+| `REVIEW.md` | Instructions for CI's Claude code review: what counts as Important, the Nit cap, what to skip, what to always check and the evidence a finding needs |
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |
 | `README.md` | The entry point for people who use the config, with the install steps |
 | `CONTRIBUTING.md` | Who can open issues and pull requests, how changes land and the checks to run |
@@ -27,6 +29,9 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 - **Keep `packages` in step with the dotfiles.** The user-data's `packages` lists the dotfiles modules' dependencies. When a dotfiles module gains a dependency, add it here too.
 - **Don't write outside the repository to test.** Writing to the Windows profile (`%USERPROFILE%\.cloud-init`, `.wslconfig`), or installing or unregistering WSL instances, needs the user's go-ahead.
 - Run the checks in [CONTRIBUTING.md](CONTRIBUTING.md#checks) before you say a change works.
+- Pin every action a workflow uses to a full commit SHA, with its version in a comment.
+- **Squash-merge a pull request once `CI result` passes and every review thread is resolved.** Resolve a thread only after you've fixed what it raises, or replied with why it isn't a problem.
+- When you review a change locally, such as with `/code-review`, also follow `REVIEW.md` as it is on `main` (`git show main:REVIEW.md`), not a copy the change edits.
 - Update the design doc in `docs/`, and the README when users would notice, in the same pull request as the change that makes them out of date.
 - Write in British English.
 
@@ -39,6 +44,6 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 - **Commit scopes:** `cloud-init`, `wslconfig`, `ci`, `docs`, `claude`, `deps`.
 - **Feature flags:** none.
 - **Releases:** none. `main` is what people copy.
-- **CI:** none yet.
+- **CI:** `ci.yml` on every pull request to `main`, with the end-to-end tests when a pull request could change what an instance runs. See [docs/ci.md](docs/ci.md).
 - User docs live in `README.md`. The repository has no wiki.
 - Issues and pull requests are limited to collaborators, because the config runs as root on their machines.

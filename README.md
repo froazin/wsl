@@ -113,6 +113,7 @@ The design docs explain each part, for anyone changing it:
 
 - [Provisioning](docs/provisioning.md): how `.wslconfig` and the user-data's stages and `runcmd` work, and how the user-data is validated.
 - [WSL meta-data](docs/meta-data.md): how each meta-data key is validated and where it ends up.
+- [CI](docs/ci.md): the checks, the end-to-end tests on Windows runners and the code review that run on each pull request.
 
 ## Contributing
 

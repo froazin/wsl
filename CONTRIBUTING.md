@@ -1,6 +1,6 @@
 # Contributing
 
-How changes reach this repository, the checks to run before you open a pull request and what to do if you want to change the config yourself.
+How changes reach this repository, the checks to run before you open a pull request, what CI runs and what to do if you want to change the config yourself.
 
 ## Issues and pull requests
 
@@ -30,3 +30,7 @@ shfmt reads its options from `.editorconfig`, so run it without formatting flags
 `tests/validate-user-data.sh` renders the user-data with `cloud-init devel render` against mock meta-data, runs `cloud-init schema` on each result and checks it. It exits 0 when every case passes, 1 when a case fails and 2 when it can't run. Add a case for every new meta-data key or conditional, including the key being unset. [docs/provisioning.md](docs/provisioning.md#validation) says what it does and doesn't prove.
 
 To test a real first boot, install a throwaway instance as the README's [Testing a change](README.md#testing-a-change) describes.
+
+## CI
+
+Every pull request to `main` runs the checks above. One that changes `src/` or CI also installs an instance on Windows runners, with and without a user, and checks what the config set up. Claude then reviews the change by [REVIEW.md](REVIEW.md) and comments on the pull request. A pull request merges once `CI result` passes and every review thread is resolved. [docs/ci.md](docs/ci.md) describes each job.
