@@ -48,9 +48,10 @@ if ($LASTEXITCODE -ne 0 -or -not $result) {
     foreach ($e in @($v1.errors)) { if ($e) { Report error $e } }
 }
 
-# Recoverable errors that Ubuntu's WSL image causes whatever the user-data says, which only warn. The image masks
-# systemd-networkd-wait-online.service, which cloud-init tries to start before it installs packages (observed).
-$imageErrors = @(
+# Recoverable errors every instance built from this config gets, which are logged rather than reported. The user-data is a
+# Jinja template, not plain cloud-config, so cloud-init waits for the network at the start of its network stage by
+# starting systemd-networkd-wait-online.service, which Ubuntu's WSL image masks (observed).
+$expected = @(
     'Failed to wait for network: (?s).*systemd-networkd-wait-online\.service is masked'
 )
 
@@ -58,10 +59,13 @@ $status = (InInstance cloud-init status --format json) -join "`n" | ConvertFrom-
 foreach ($e in @($status.errors)) { if ($e) { Report error $e } }
 if ($status.recoverable_errors) {
     foreach ($level in $status.recoverable_errors.PSObject.Properties) {
-        foreach ($e in @($level.Value)) {
-            if (-not $e) { continue }
-            $fromImage = @($imageErrors | Where-Object { $e -match $_ }).Count -gt 0
-            Report ($fromImage ? 'warning' : 'error') "Recoverable $($level.Name): $e"
+        # cloud-init can list the same error more than once.
+        foreach ($e in @($level.Value) | Where-Object { $_ } | Select-Object -Unique) {
+            if (@($expected | Where-Object { $e -match $_ }).Count -gt 0) {
+                Write-Output "Expected recoverable $($level.Name), not reported: $(($e -split "`n")[0])"
+            } else {
+                Report error "Recoverable $($level.Name): $e"
+            }
         }
     }
 }
@@ -71,5 +75,5 @@ if ($waited -eq 2 -and -not $status.recoverable_errors) {
 
 if ($failed) { exit 1 }
 Write-Output "cloud-init finished: $($status.extended_status)"
-# The runner exits with $LASTEXITCODE, which is cloud-init status's 2 for an image error that only warns.
+# The runner exits with $LASTEXITCODE, which is cloud-init status's 2 when only expected errors are left.
 exit 0
