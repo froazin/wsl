@@ -1,0 +1,448 @@
+## template: jinja
+#cloud-config
+
+# Copy to %USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data, alongside a
+# filled-in copy of src/Ubuntu-26.04.meta-data, before installing the
+# distro. It applies once, on first boot, and the OOBE waits for it.
+
+{% set user = ds.meta_data.username or '' %}
+{% set git_name = ds.meta_data.git_name or '' %}
+{% set git_email = ds.meta_data.git_email or '' %}
+{% set git_signingkey = ds.meta_data.git_signingkey or '' %}
+{% if git_signingkey is string %}
+{% set git_signingkey = git_signingkey.strip() %}
+{% endif %}
+{% set git_ssh_program = ds.meta_data.git_ssh_program or '' %}
+{% set vscode_extensions = ds.meta_data.vscode_extensions or [] %}
+{% if vscode_extensions is string %}
+{% set vscode_extensions = vscode_extensions.replace(',', ' ').split() %}
+{% elif vscode_extensions is mapping or vscode_extensions is not sequence %}
+{% set vscode_extensions = [] %}
+{% endif %}
+{# Only publisher.name IDs, each part [A-Za-z0-9][A-Za-z0-9-]*, reach the shell. #}
+{% set extensions = namespace(valid=[], invalid=[]) %}
+{% for ext in vscode_extensions %}
+{% set publisher, dot, name = (ext | string).partition('.') %}
+{% if ext is string and dot and publisher[:1].isalnum() and name[:1].isalnum() and (publisher ~ name).isascii() and (publisher ~ name).replace('-', '').isalnum() %}
+{% set extensions.valid = extensions.valid + [ext] %}
+{% else %}
+{% set extensions.invalid = extensions.invalid + [ext | string] %}
+{% endif %}
+{% endfor %}
+{% set gh_extensions = ds.meta_data.gh_extensions or [] %}
+{% if gh_extensions is string %}
+{% set gh_extensions = gh_extensions.replace(',', ' ').split() %}
+{% elif gh_extensions is mapping or gh_extensions is not sequence %}
+{% set gh_extensions = [] %}
+{% endif %}
+{# Only [https://][host/]owner/repo, each part [A-Za-z0-9][A-Za-z0-9._-]*, reach the shell. #}
+{% set gh_exts = namespace(valid=[], invalid=[]) %}
+{% for ext in gh_extensions %}
+{% set url = (ext | string).startswith('https://') %}
+{% set parts = (ext | string).removeprefix('https://').split('/') %}
+{% set check = namespace(ok=ext is string and parts | length in ((3,) if url else (2, 3))) %}
+{% for part in parts %}
+{% if not (part[:1].isalnum() and part.isascii() and part.replace('.', '').replace('_', '').replace('-', '').isalnum()) %}
+{% set check.ok = false %}
+{% endif %}
+{% endfor %}
+{% if check.ok %}
+{% set gh_exts.valid = gh_exts.valid + [ext] %}
+{% else %}
+{% set gh_exts.invalid = gh_exts.invalid + [ext | string] %}
+{% endif %}
+{% endfor %}
+{# GitHub username from a noreply address, ID+user@ or user@. #}
+{% set gh_local, _, gh_domain = (git_email | string).rpartition('@') %}
+{% set gh_user = gh_local.split('+', 1)[-1] if gh_domain | lower == 'users.noreply.github.com' else '' %}
+{% if not gh_user.replace('-', '').isalnum() %}
+{% set gh_user = '' %}
+{% endif %}
+{# allowed_signers line for a key git reads as literal, "key::<type> <base64> [comment]" or "ssh-<type> ..."; anything else is a key file path to git and gets none. The principal is git_email, or * when it has characters outside [A-Za-z0-9.+_@-]. #}
+{% set literal_key = git_signingkey is string and git_signingkey.startswith(('key::', 'ssh-')) %}
+{% set key_type, key_data = ((git_signingkey | string).removeprefix('key::').split() + ['', ''])[:2] %}
+{% set principal = git_email | string %}
+{% if not (principal.isascii() and principal.replace('.', '').replace('+', '').replace('_', '').replace('-', '').replace('@', '').isalnum()) %}
+{% set principal = '*' %}
+{% endif %}
+{% set allowed_signer = '' %}
+{% if literal_key and key_type.startswith(('ssh-', 'ecdsa-', 'sk-')) and (key_type ~ key_data).isascii() and key_type.replace('-', '').replace('@', '').replace('.', '').isalnum() and key_data.replace('+', '').replace('/', '').replace('=', '').isalnum() %}
+{% set allowed_signer = principal ~ ' namespaces="git" ' ~ key_type ~ ' ' ~ key_data %}
+{% endif %}
+{% macro workspace(repo) %}workspaces/{{ repo.split('://', 1)[-1].removesuffix('.git') }}{% endmacro %}
+{% set dotfiles_repo = 'https://github.com/froazin/dotfiles.git' %}
+{% set dotfiles_rel = workspace(dotfiles_repo) %}
+{% set dotfiles_dir = '~/' ~ dotfiles_rel %}
+{% set nvm_repo = 'https://github.com/nvm-sh/nvm.git' %}
+{% set nvm_dir = '~/' ~ workspace(nvm_repo) %}
+{% macro gitval(value) %}"{{ value | string | replace('\\', '\\\\') | replace('"', '\\"') }}"{% endmacro %}
+
+locale: en_GB.UTF-8
+{% if user %}
+
+users:
+  - name: {{ user }}
+    uid: 1000
+    shell: /usr/bin/zsh
+    groups: [adm, cdrom, sudo, dip, plugdev, users, kvm]
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+{% endif %}
+
+package_update: true
+package_upgrade: true
+
+apt:
+  sources:
+    github-cli:
+      source: "deb [signed-by=$KEY_FILE] https://cli.github.com/packages stable main"
+      # GitHub CLI <opensource+cli@github.com>
+      # 7F38 BBB5 9D06 4DBC B3D8  4D72 5612 B364 6231 3325
+      key: |
+        -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+        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
+        LxU=
+        =VbVd
+        -----END PGP PUBLIC KEY BLOCK-----
+
+packages:
+  # dotfiles modules and their soft and optional dependencies
+  - zsh
+  - zsh-common
+  - zsh-autosuggestions
+  - zsh-syntax-highlighting
+  - fzf
+  - git
+  - direnv
+  - xdg-utils
+  - curl
+  - ca-certificates
+  - jq
+  - python3
+  # development
+  - gh
+  # VS Code's launcher fetches its WSL server with wget; ubuntu-wsl only pulls
+  # it in indirectly.
+  - wget
+  - shellcheck
+  - shfmt
+  # containers
+  - podman
+  - podman-docker
+  - podman-compose
+  - buildah
+  - skopeo
+  # utilities
+  - btop
+  - tree
+  - ripgrep
+  - fd-find
+  - nmap
+  - ncat
+  # virtualisation; qemu-kvm is a virtual package and must not be listed
+  - qemu-system-x86
+  - qemu-utils
+  - libvirt-daemon-system
+  - libvirt-clients
+  - virtinst
+  - ovmf
+  - swtpm
+  - swtpm-tools
+  - cpu-checker
+
+write_files:
+  # No [user] section: the OOBE adds `default=` for whichever user exists.
+  - path: /etc/wsl.conf
+    permissions: "0644"
+    content: |
+      [boot]
+      systemd=true
+      command=mount -o remount,shared /
+
+      [interop]
+      enabled=true
+      appendWindowsPath=false
+
+  # Ubuntu Pro pins ESM at 510, which would otherwise win over upstream gh.
+  - path: /etc/apt/preferences.d/github-cli
+    permissions: "0644"
+    content: |
+      Package: gh
+      Pin: origin cli.github.com
+      Pin-Priority: 600
+
+  # For a user the OOBE creates. DSHELL is added in runcmd, once zsh is known
+  # to be installed.
+  - path: /etc/adduser.conf
+    append: true
+    content: |
+
+      # Added by cloud-init for WSL.
+      ADD_EXTRA_GROUPS=1
+      EXTRA_GROUPS="users kvm libvirt"
+
+  - path: /etc/containers/nodocker
+    permissions: "0644"
+    content: ""
+
+  # xdg-open falls back to $BROWSER when explorer.exe is not on PATH.
+  - path: /etc/profile.d/browser.sh
+    permissions: "0644"
+    content: |
+      export BROWSER=/usr/local/bin/start
+
+  - path: /etc/environment.d/90-browser.conf
+    permissions: "0644"
+    content: |
+      BROWSER=/usr/local/bin/start
+
+  # .wslconfig sets swap=0, but swap that WSL attaches anyway is turned off.
+  - path: /etc/systemd/system/disable-swap.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Disable swap to mirror swap=0 in .wslconfig
+      ConditionVirtualization=wsl
+      After=local-fs.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/sbin/swapoff -a
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # runcmd enables podman.socket globally. In root's user manager, which
+  # `sudo su` starts, it would be a second rootful API beside the system one.
+  - path: /etc/systemd/user/podman.socket.d/10-not-root.conf
+    permissions: "0644"
+    content: |
+      [Unit]
+      ConditionUser=!root
+
+  # Podman wants / shared; backs up the [boot] command in wsl.conf.
+  - path: /etc/systemd/system/make-root-rshared.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Make / a recursively shared mount
+      ConditionVirtualization=wsl
+      DefaultDependencies=no
+      After=local-fs.target
+      Before=sysinit.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/mount --make-rshared /
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=sysinit.target
+
+  - path: /usr/local/bin/start
+    permissions: "0755"
+    content: |
+      #!/usr/bin/sh
+      #
+      # Open a URL or file with its default Windows handler. Used as $BROWSER.
+
+      _target="$*"
+
+      if [ -e "$_target" ]; then
+      	_target="$(wslpath -w "$_target")" || exit 1
+      fi
+
+      # Passed in the environment, not the command, so it is never parsed as code.
+      # shellcheck disable=SC2016 # $env: is expanded by PowerShell, not sh.
+      START_TARGET="$_target" WSLENV="${WSLENV:+$WSLENV:}START_TARGET" \
+      	/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+      	-NoLogo \
+      	-NoProfile \
+      	-NonInteractive \
+      	-Command 'Start-Process -FilePath $env:START_TARGET' \
+      	</dev/null >/dev/null 2>&1 &
+
+      exit 0
+
+{% if user %}
+  # Deferred until the user exists. The git module adds core.excludesfile later.
+  - path: /home/{{ user }}/.gitconfig
+    owner: "{{ user }}:{{ user }}"
+    permissions: "0644"
+    defer: true
+    content: |
+{% if git_name or git_email or git_signingkey %}
+      [user]
+{% if git_name %}
+      	name = {{ gitval(git_name) }}
+{% endif %}
+{% if git_email %}
+      	email = {{ gitval(git_email) }}
+{% endif %}
+{% if git_signingkey %}
+      	signingkey = {{ gitval(git_signingkey) }}
+{% endif %}
+{% endif %}
+      [init]
+      	defaultBranch = main
+      [core]
+      	autocrlf = false
+      	editor = /usr/local/bin/code --wait
+      [safe]
+      	directory = /home/{{ user }}/workspaces/*
+      [credential "https://github.com"]
+      	helper =
+      	helper = !/usr/bin/gh auth git-credential
+      [credential "https://gist.github.com"]
+      	helper =
+      	helper = !/usr/bin/gh auth git-credential
+{% if git_signingkey %}
+      [gpg]
+      	format = ssh
+      [commit]
+      	gpgsign = true
+{% endif %}
+{% if git_ssh_program or allowed_signer %}
+      [gpg "ssh"]
+{% if git_ssh_program %}
+      	program = {{ gitval(git_ssh_program) }}
+{% endif %}
+{% if allowed_signer %}
+      	allowedSignersFile = ~/.config/git/allowed_signers
+{% endif %}
+{% endif %}
+{% if allowed_signer %}
+
+  # Lets git verify commits signed with git_signingkey. Parent directories
+  # cloud-init creates here are owned by the user too.
+  - path: /home/{{ user }}/.config/git/allowed_signers
+    owner: "{{ user }}:{{ user }}"
+    permissions: "0644"
+    defer: true
+    content: |
+      {{ allowed_signer }}
+{% endif %}
+{% endif %}
+
+# Runs in the final stage, after packages. Each entry runs regardless of the
+# others' exit status.
+runcmd:
+  - [ln, -sfn, "/mnt/c/Program Files/Microsoft VS Code/bin/code", /usr/local/bin/code]
+  - [ln, -sfn, "/mnt/c/Program Files/WinGet/Links/op.exe", /usr/local/bin/op]
+  - [ln, -sfn, "/mnt/c/Program Files/OpenSSH/ssh.exe", /usr/local/bin/ssh]
+  - [ln, -sfn, "/mnt/c/Program Files/OpenSSH/ssh-add.exe", /usr/local/bin/ssh-add]
+  - [ln, -sfn, /mnt/c/Windows/System32/clip.exe, /usr/local/bin/clip]
+  # fd-find installs its command as fdfind; another package owns the name fd.
+  - [ln, -sfn, /usr/bin/fdfind, /usr/local/bin/fd]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, disable-swap.service, make-root-rshared.service]
+  # Not `systemctl --user`: runcmd has no user bus. Keep this above the first
+  # `runuser -l`, which starts the user's manager, the only time it reads
+  # global wants.
+  - [systemctl, --global, enable, podman.socket]
+  # Root's API; podman-docker's /run/docker.sock points at it.
+  - [systemctl, enable, --now, podman.socket]
+  - [virsh, --connect, "qemu:///system", net-autostart, default]
+  # A login shell that does not exist would lock the OOBE-created user out.
+  - [sh, -c, 'if [ -x /usr/bin/zsh ]; then printf "DSHELL=/usr/bin/zsh\n" >> /etc/adduser.conf; fi']
+  # Root too; `users:` skips existing users. Same guard as above.
+  - [sh, -c, 'if [ -x /usr/bin/zsh ]; then usermod -s /usr/bin/zsh root; fi']
+{% if user %}
+  - [usermod, -aG, libvirt, "{{ user }}"]
+  # Layout the zsh `ws` picker expects: ~/workspaces/<host>/<owner>/<repo>.
+  - [runuser, -u, "{{ user }}", --, mkdir, -p, "/home/{{ user }}/workspaces"]
+{% if gh_user %}
+  - [runuser, -u, "{{ user }}", --, mkdir, -p, "/home/{{ user }}/workspaces/github.com/{{ gh_user }}"]
+{% endif %}
+  # Official installers, run as the user so they can update themselves. The
+  # dotfiles' .zshenv puts ~/.local/bin and ~/.pulumi/bin on PATH.
+  - [runuser, -l, "{{ user }}", -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh"]
+  - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://get.pulumi.com | sh -s -- --no-edit-path"]
+  # Biome's installer needs bash.
+  - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://biomejs.dev/install | bash -s -- --no-modify-path"]
+  # nvm's install.sh installs its own pinned release into ~/.nvm, so check out
+  # the newest tag first; rerunning this updates it. PROFILE=/dev/null keeps it
+  # out of the shell profiles.
+  - [runuser, -l, "{{ user }}", -c, 'if [ -d {{ nvm_dir }}/.git ]; then git -C {{ nvm_dir }} fetch --quiet --tags; else git clone --quiet {{ nvm_repo }} {{ nvm_dir }}; fi && cd {{ nvm_dir }} && git checkout --quiet "$(git describe --abbrev=0 --tags --match "v[0-9]*" "$(git rev-list --tags --max-count=1)")" && PROFILE=/dev/null bash install.sh']
+  # Claude Code's installer needs bash.
+  - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://claude.ai/install.sh | bash"]
+  # ant (Claude Platform CLI, not apt's Apache Ant) has no installer or
+  # self-update; rerunning this updates it. tar -m stamps the install time,
+  # which is how zsh knows to regenerate its completion.
+  - [runuser, -l, "{{ user }}", -c, 'v="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/anthropics/anthropic-cli/releases/latest)" && v="${v##*/v}" && case "$(uname -m)" in x86_64) a=amd64 ;; aarch64) a=arm64 ;; esac && mkdir -p ~/.local/bin && curl -fsSL "https://github.com/anthropics/anthropic-cli/releases/download/v$v/ant_${v}_linux_$a.tar.gz" | tar -xzmf - -C ~/.local/bin ant']
+  # One entry each so one failure does not stop the rest. VS Code's launcher
+  # only installs into ~/.vscode-server when WSL_DISTRO_NAME is set, which
+  # runuser clears; the value only labels the remote, so the instance name from
+  # wslpath will do.
+{% for ext in extensions.valid %}
+  - [runuser, -l, "{{ user }}", -c, '[ -x /usr/local/bin/code ] || exit 0; WSL_DISTRO_NAME="$(basename "$(wslpath -am /)")" code --install-extension {{ ext }}']
+{% endfor %}
+{# ASCII first: tojson writes non-BMP characters as surrogate pairs, which YAML decodes to lone surrogates that fail all of runcmd. printf, not echo: dash's echo interprets backslashes. #}
+{% for ext in extensions.invalid %}
+  - [printf, "Skipped vscode_extensions entry, not a publisher.name ID: %s\n", {{ ext.encode('ascii', 'backslashreplace').decode('ascii') | tojson }}]
+{% endfor %}
+  # gh needs no login to install a public extension, and skips one that is
+  # already installed.
+{% for ext in gh_exts.valid %}
+  - [runuser, -l, "{{ user }}", -c, "gh extension install {{ ext }}"]
+{% endfor %}
+{% for ext in gh_exts.invalid %}
+  - [printf, "Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s\n", {{ ext.encode('ascii', 'backslashreplace').decode('ascii') | tojson }}]
+{% endfor %}
+  # ~/.zshenv does not exist yet, so PATH gets its directories here; otherwise
+  # the installer cannot see claude and skips the claude module.
+  - [runuser, -l, "{{ user }}", -c, "{ [ -d {{ dotfiles_dir }}/.git ] || git clone {{ dotfiles_repo }} {{ dotfiles_dir }}; } && PATH=\"$HOME/.local/bin:$HOME/.pulumi/bin:$PATH\" sh {{ dotfiles_dir }}/src/install.sh"]
+  # runcmd has no HOME; runuser -l sets HOME=/root, so the path cannot use ~.
+  - [runuser, -l, root, -c, "sh /home/{{ user }}/{{ dotfiles_rel }}/src/install.sh"]
+{% else %}
+  # No user yet. The installer copies its templates, so the clone can be deleted.
+  - [runuser, -l, root, -c, 'd="$(mktemp -d)" && git clone --quiet --depth 1 {{ dotfiles_repo }} "$d" && sh "$d/src/install.sh"; rc=$?; rm -rf "$d"; exit "$rc"']
+{% endif %}

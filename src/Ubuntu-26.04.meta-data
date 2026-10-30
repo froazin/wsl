@@ -1,0 +1,41 @@
+# Identifying inputs and personal choices for src/Ubuntu-26.04.user-data.
+#
+# Copy to %USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data and fill in. Keep
+# the filled copy out of this repository. cloud-init only reads meta-data named
+# after the instance, so this matches an instance named "Ubuntu-26.04".
+#
+# Leave a value empty to skip it.
+
+instance-id: ubuntu-wsl
+
+# Linux username, created with uid 1000, zsh and passwordless sudo. Empty to
+# have the OOBE prompt for a user instead.
+username:
+
+# git user.name and user.email.
+git_name:
+git_email:
+
+# Public SSH key to sign commits with, e.g. "ssh-ed25519 AAAA...". Commit
+# signing is only enabled when this is set. A literal key (not a key file
+# path) is also written to ~/.config/git/allowed_signers, so git can verify
+# your signatures. It is trusted for git_email, or for any identity when that
+# is empty or has characters other than letters, digits and .+_@-.
+git_signingkey:
+
+# Program git signs with, e.g. 1Password's WSL helper:
+# /mnt/c/Users/<you>/AppData/Local/Microsoft/WindowsApps/op-ssh-sign-wsl.exe
+git_ssh_program:
+
+# VS Code extensions to install into the instance's VS Code server, by
+# Marketplace ID (publisher.name). Needs a username, and VS Code with its WSL
+# extension on Windows.
+vscode_extensions:
+  - Anthropic.claude-code
+  - ms-python.python
+
+# GitHub CLI extensions to install, as a repository URL
+# (https://github.com/owner/gh-name), host/owner/gh-name or owner/gh-name.
+# Needs a username. Add your own.
+gh_extensions:
+  - https://github.com/nektos/gh-act
