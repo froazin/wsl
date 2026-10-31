@@ -16,12 +16,12 @@ How the cloud-init parts in [`src/Ubuntu-26.04.user-data.d/`](../src/Ubuntu-26.0
 
 ## Overview
 
-Each release publishes two files, which the user downloads into their Windows profile, as the [README](../README.md#using-it) describes:
+The user puts two files in their Windows profile, as the [README](../README.md#using-it) describes:
 
-| Release asset | Built from | Copied to | Role |
+| File | From | Copied to | Role |
 | --- | --- | --- | --- |
-| `Ubuntu-26.04.user-data` | The parts in `src/Ubuntu-26.04.user-data.d/` | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | A MIME multipart file of cloud-config parts. Generic, and the same for every user |
-| `Ubuntu-26.04.meta-data` | [`src/Ubuntu-26.04.meta-data`](../src/Ubuntu-26.04.meta-data), as it is | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data` | A template the user fills in with their identity and choices. See [WSL meta-data](meta-data.md) |
+| `Ubuntu-26.04.user-data` | Each release, built from the parts in `src/Ubuntu-26.04.user-data.d/` | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | A MIME multipart file of cloud-config parts. Generic, and the same for every user |
+| `Ubuntu-26.04.meta-data` | The README's [meta-data example](../README.md#the-meta-data-example) | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data` | The user's identity and choices, which they fill in. See [WSL meta-data](meta-data.md) |
 
 The user-data installs packages, writes system config, bridges Windows tools into Linux, creates the user and runs [`install.sh`](https://github.com/froazin/dotfiles/blob/main/src/install.sh) from the [dotfiles](https://github.com/froazin/dotfiles) for that user and for root. It holds nothing personal: every personal value comes from the meta-data.
 
@@ -32,9 +32,10 @@ This flowchart shows how the files reach the instance:
 ```mermaid
 flowchart LR
     accTitle: How the WSL files reach the instance
-    accDescr: The build joins the parts in src into one MIME user-data, and a release publishes it with the meta-data template. The user downloads both into their Windows profile, and can add the optional .wslconfig, which WSL reads. cloud-init's WSL datasource reads the user-data and meta-data, renders each Jinja part, merges the parts and runs the cloud-config, which runs install.sh as the user and as root.
+    accDescr: The build joins the parts in src into one MIME user-data, and a release publishes it. The user downloads it into their Windows profile, writes the meta-data beside it from the README's example, and can add the optional .wslconfig, which WSL reads. cloud-init's WSL datasource reads the user-data and meta-data, renders each Jinja part, merges the parts and runs the cloud-config, which runs install.sh as the user and as root.
     parts["src/Ubuntu-26.04.user-data.d/"] -->|"invoke build, make-mime"| release["GitHub release"]
-    release -->|"user-data and meta-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
+    release -->|"user-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
+    example["README meta-data example"] -->|"copied to .cloud-init and filled in"| ds
     wslconfig["optional .wslconfig"] -->|"in the Windows profile"| vm["WSL 2 virtual machine"]
     ds -->|"each part, with ds.meta_data"| jinja["Jinja render"]
     jinja -->|"parts merged in name order"| modules["cloud-init modules"]

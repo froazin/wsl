@@ -5,14 +5,17 @@ on:
   pull_request:
     branches:
       - main
-    # A change only to these can't change the config or how it's checked, so it runs nothing.
-    paths-ignore:
-      - "**.md"
-      - ".claude/**"
-      - ".github/dependabot.yml"
-      - ".vscode/**"
-      - "docs/**"
-      - "LICENSE"
+    # A change only to the docs can't change the config or how it's checked, so it runs nothing. README.md isn't skipped,
+    # because it holds the meta-data example the checks read. A later pattern wins over an earlier one.
+    paths:
+      - "**"
+      - "!**.md"
+      - "README.md"
+      - "!.claude/**"
+      - "!.github/dependabot.yml"
+      - "!.vscode/**"
+      - "!docs/**"
+      - "!LICENSE"
     types:
       - opened
       - synchronize

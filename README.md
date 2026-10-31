@@ -16,24 +16,22 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 
 ## Using it
 
-You need Windows with WSL 2. Each [release](https://github.com/froazin/wsl/releases) has two files:
+You need Windows with WSL 2. cloud-init reads two files from `%USERPROFILE%\.cloud-init\`, named after the instance:
 
-| File | Copy to | What it is |
+| File | Where it comes from | What it is |
 | --- | --- | --- |
-| `Ubuntu-26.04.user-data` | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | The cloud-init config. It holds nothing personal |
-| `Ubuntu-26.04.meta-data` | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data` | Your username, git identity and extension lists. Fill it in, and keep your copy to yourself |
+| `Ubuntu-26.04.user-data` | Each [release](https://github.com/froazin/wsl/releases) | The cloud-init config. It holds nothing personal |
+| `Ubuntu-26.04.meta-data` | You write it from [the meta-data example](#the-meta-data-example) | Your username, git identity and extension lists. Keep your copy to yourself |
 
-1. Download the latest release's files. From PowerShell:
+1. Download the latest release's user-data. From PowerShell:
 
    ```powershell
-   $base = 'https://github.com/froazin/wsl/releases/latest/download'
-   New-Item -ItemType Directory -Force "$env:USERPROFILE\.cloud-init" | Out-Null
-   foreach ($f in 'Ubuntu-26.04.user-data', 'Ubuntu-26.04.meta-data') {
-       Invoke-WebRequest "$base/$f" -OutFile "$env:USERPROFILE\.cloud-init\$f"
-   }
+   $dir = "$env:USERPROFILE\.cloud-init"
+   New-Item -ItemType Directory -Force $dir | Out-Null
+   Invoke-WebRequest 'https://github.com/froazin/wsl/releases/latest/download/Ubuntu-26.04.user-data' -OutFile "$dir\Ubuntu-26.04.user-data"
    ```
 
-1. Fill in `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`. Its comments describe each value, and an empty value is skipped.
+1. Copy [the meta-data example](#the-meta-data-example) into `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`, and fill it in.
 1. Optionally, set up `.wslconfig` as [The .wslconfig example](#the-wslconfig-example) describes.
 1. Install the distribution under its default name, which is the name cloud-init matches the files by:
 
@@ -48,6 +46,49 @@ You need Windows with WSL 2. Each [release](https://github.com/froazin/wsl/relea
    ```powershell
    wsl --terminate Ubuntu-26.04
    ```
+
+### The meta-data example
+
+The meta-data holds everything personal, so the user-data stays the same for everyone. Each comment describes the value below it. Leave a value empty to skip it, and add your own extensions to the lists.
+
+<!-- meta-data example -->
+
+```yaml
+# Needed by cloud-init. Any value will do.
+instance-id: ubuntu-wsl
+
+# Linux username, created with uid 1000, zsh and passwordless sudo. Leave it
+# empty to have WSL ask for a user instead, as "Without a username" describes.
+username:
+
+# git user.name and user.email.
+git_name:
+git_email:
+
+# Public SSH key to sign commits with, such as "ssh-ed25519 AAAA...". Commit
+# signing is only turned on when this is set. A literal key, rather than a key
+# file path, is also written to ~/.config/git/allowed_signers, so git can
+# verify your signatures. It's trusted for git_email, or for any identity when
+# that's empty or has characters other than letters, digits and .+_@-.
+git_signingkey:
+
+# Program git signs with, such as 1Password's WSL helper:
+# /mnt/c/Users/<you>/AppData/Local/Microsoft/WindowsApps/op-ssh-sign-wsl.exe
+git_ssh_program:
+
+# VS Code extensions to install into the instance's VS Code server, by
+# Marketplace ID (publisher.name). Needs a username, and VS Code with its WSL
+# extension on Windows.
+vscode_extensions:
+  - Anthropic.claude-code
+  - ms-python.python
+
+# GitHub CLI extensions to install, as a repository URL
+# (https://github.com/owner/gh-name), host/owner/gh-name or owner/gh-name.
+# Needs a username.
+gh_extensions:
+  - https://github.com/nektos/gh-act
+```
 
 ### Reading what it runs
 
@@ -115,7 +156,7 @@ PATH="$HOME/.local/bin:$HOME/.pulumi/bin:$PATH" sh ~/workspaces/github.com/froaz
 
 ### Testing a change
 
-Build the files with `uv run invoke build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy `dist/Ubuntu-26.04.user-data` and `dist/Ubuntu-26.04.meta-data` as `ci-test.user-data` and `ci-test.meta-data` to match a throwaway instance, then install it and remove it when you're done:
+Build the user-data with `uv run invoke build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy `dist/Ubuntu-26.04.user-data` as `ci-test.user-data`, and write `ci-test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
 
 ```powershell
 wsl --install Ubuntu-26.04 --name ci-test
@@ -135,10 +176,10 @@ The config is plain cloud-init, written as one part per feature. `invoke build` 
 ```mermaid
 flowchart LR
     accTitle: How the files reach the instance
-    accDescr: invoke build joins the parts in src into one MIME user-data, and the release workflow publishes it with the meta-data template. You download both into your Windows profile and fill in the meta-data. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in name order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
+    accDescr: invoke build joins the parts in src into one MIME user-data, and the release workflow publishes it. You download it into your Windows profile, and write the meta-data beside it from the README's example. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in name order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
     parts["src/Ubuntu-26.04.user-data.d/"] -->|"invoke build"| release["GitHub release"]
-    meta["src/Ubuntu-26.04.meta-data"] -->|"copied as it is"| release
-    release -->|"downloaded to .cloud-init, meta-data filled in"| ds["cloud-init WSL datasource"]
+    release -->|"user-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
+    example["The README's meta-data example"] -->|"copied to .cloud-init and filled in"| ds
     ds -->|"renders each part, merges them in name order"| modules["cloud-init modules"]
     wslconfig["optional .wslconfig"] -->|"read by WSL"| vm["WSL 2 virtual machine"]
     vm -->|hosts| modules

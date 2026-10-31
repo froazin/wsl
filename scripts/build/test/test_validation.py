@@ -2,7 +2,17 @@ import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from scripts.build.validation import expectation_problems, indented_tags, leaked_paths, merge_problems, source_problems
+import pytest
+
+from scripts.build import BuildError
+from scripts.build.validation import (
+    expectation_problems,
+    indented_tags,
+    leaked_paths,
+    merge_problems,
+    meta_data_example,
+    source_problems,
+)
 
 EXPECT = {
     "user": True, "username": "jdoe", "gh_dir": "", "extensions": [], "skipped": [], "gh_extensions": [],
@@ -145,3 +155,30 @@ def test_source_problems_read_mime_parts_and_check_tags_only_in_src(tmp_path):
         f"{dist}/x:10-a contains a concrete /mnt/c/Users/<name>/ path: path: /mnt/c/Users/jdoe/x",
         f"{src}/x.d/10-a:3: a Jinja tag is not at column 0",
     ]
+
+
+def test_the_meta_data_example_is_the_yaml_block_after_the_marker(tmp_path):
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "```yaml\nother: block\n```\n\n<!-- meta-data example -->\n\n```yaml\n# A comment.\ninstance-id: wsl\n"
+        "username:\n```\n\n```yaml\nlater: block\n```\n"
+    )
+
+    assert meta_data_example(str(readme)) == {"instance-id": "wsl", "username": None}
+
+
+@pytest.mark.parametrize(
+    ("text", "error"),
+    [
+        ("```yaml\ninstance-id: wsl\n```\n", "has no yaml code block"),
+        ("<!-- meta-data example -->\nText first.\n\n```yaml\ninstance-id: wsl\n```\n", "has no yaml code block"),
+        ("<!-- meta-data example -->\n```yaml\n- a list\n```\n", "is not a YAML mapping"),
+        ("<!-- meta-data example -->\n```yaml\na: [b\n```\n", "is not valid YAML"),
+    ],
+)
+def test_a_missing_or_broken_meta_data_example_is_an_error(tmp_path, text, error):
+    readme = tmp_path / "README.md"
+    readme.write_text(text)
+
+    with pytest.raises(BuildError, match=error):
+        meta_data_example(str(readme))

@@ -27,16 +27,17 @@ This flowchart shows what each task calls, and the files and tools it uses:
 ```mermaid
 flowchart LR
     accTitle: How the tasks build and check the config
-    accDescr: The invoke CLI runs a task in tasks.py. The build task calls scripts.build.build, which reads src/, joins each parts folder with cloud-init devel make-mime and writes dist/. The validate task builds first, then calls scripts.build.validation, which takes the cases from scripts.build.cases, merges dist's user-data with cloud-init's part handlers, renders each part in src/ and runs cloud-init schema, git, ssh-keygen and ShellCheck. The version task calls scripts.release.
+    accDescr: The invoke CLI runs a task in tasks.py. The build task calls scripts.build.build, which reads src/, joins each parts folder with cloud-init devel make-mime and writes dist/. The validate task builds first, then calls scripts.build.validation, which takes the cases from scripts.build.cases and the meta-data example from README.md, merges dist's user-data with cloud-init's part handlers, renders each part in src/ and runs cloud-init schema, git, ssh-keygen and ShellCheck. The version task calls scripts.release.
     cli["invoke CLI"] -->|"task and flags"| tasks["tasks.py"]
     tasks -->|"build, and validate unless --skip-build"| build["scripts.build.build"]
     tasks -->|validate| validation["scripts.build.validation"]
     tasks -->|version| release["scripts.release"]
-    src[("src/")] -->|"parts and meta-data"| build
+    src[("src/")] -->|parts| build
     build -->|"each .d folder"| mime["cloud-init devel make-mime"]
     mime -->|"MIME user-data"| dist[("dist/")]
     build -->|"copies other files"| dist
     cases["scripts.build.cases"] -->|"32 cases"| validation
+    readme["README.md"] -->|"the meta-data example"| validation
     dist -->|"merged with cloud-init's part handlers"| validation
     src -->|"each part rendered on its own"| validation
     validation -->|"merged cloud-config"| tools["cloud-init schema, git, ssh-keygen, ShellCheck"]
@@ -47,7 +48,6 @@ flowchart LR
 
 ```text
 src/
-├── Ubuntu-26.04.meta-data           copied to dist/ as it is
 └── Ubuntu-26.04.user-data.d/
     ├── 00-base.user-data            merge_how, locale, apt update and upgrade
     ├── 10-windows.user-data         Windows tool links, $BROWSER and the start script
@@ -65,7 +65,7 @@ src/
 `invoke build` calls `build()` in [`build.py`](../scripts/build/build.py). It empties `dist/`, then for each entry in `src/`, in name order:
 
 - A folder named `<name>.d` becomes `dist/<name>`, a MIME multipart file of the folder's parts. `build.py` runs `cloud-init devel make-mime` from inside the folder, attaching each file by name, so each part is named by its file name. A part is `jinja2` when its first line is `## template: jinja`, and `cloud-config` otherwise.
-- Any other file is copied as it is.
+- Any other file is copied as it is. There's none today: users write the meta-data from the README's example, so nothing else is released.
 - Anything else, such as a folder without the `.d` suffix, is a `BuildError`.
 
 What follows from the parts being separate:
@@ -88,6 +88,8 @@ For each case in [`cases.py`](../scripts/build/cases.py), it:
 1. Checks the case's expectations: the user, the workspace directory, the extensions installed and skipped, the `podman.socket` order, root's dotfiles install and that `runcmd` can be written as UTF-8.
 1. Checks what git reads back from `.gitconfig`, and that `allowed_signers` works with `ssh-keygen` as git uses it.
 
+The `readme-example` case renders with the README's [meta-data example](../README.md#the-meta-data-example), plus a username. `meta_data_example()` finds it as the `yaml` code block straight after the `<!-- meta-data example -->` comment, and raises a `BuildError` when there's no such block or it isn't a YAML mapping.
+
 After the cases, it runs ShellCheck on `/usr/local/bin/start` from the `full` case, then checks every file in `src/` and `dist/`, with the MIME parts decoded, for a concrete `/mnt/c/Users/<name>/` path, and every Jinja part in `src/` for a `{%` or `{#` tag that starts a line away from column 0.
 
 It prints `ok   <case>` or `FAIL <case>` for each case, after a `FAIL: <case>: <problem>` line for each problem. It ends with `All cases passed.`, or raises a `BuildError`. The cases and what each proves are in the [validate-user-data skill](../.claude/skills/validate-user-data/SKILL.md). Add a case for every new meta-data key or conditional, including the key being unset.
@@ -95,7 +97,7 @@ It prints `ok   <case>` or `FAIL <case>` for each case, after a `FAIL: <case>: <
 ## Errors
 
 - `scripts.build` raises [`BuildError`](../scripts/build/errors.py), and `scripts.release` raises [`ReleaseError`](../scripts/release/errors.py), for a failure the user can fix. `tasks.py` turns each into an `Exit` with status 1, so Invoke prints the message without a traceback.
-- `BuildError` covers a parts folder with no parts, an entry in `src/` that's neither a file nor a `.d` folder, a missing command, a missing file in `dist/` and a failed validation.
+- `BuildError` covers a parts folder with no parts, an entry in `src/` that's neither a file nor a `.d` folder, a missing command, a missing file in `dist/`, a missing or broken meta-data example in the README and a failed validation.
 - A failed `make-mime` raises Invoke's `UnexpectedExit` from `c.run`, which Invoke reports without a traceback (inferred).
 - Any other exception is a bug, and keeps its traceback.
 - cloud-init's own warnings for a part that fails, such as "Failed loading yaml blob", go to standard error beside the `FAIL:` lines.

@@ -8,9 +8,9 @@ paths:
 The user-data is written as cloud-config parts in
 `Ubuntu-26.04.user-data.d/`. `uv run invoke build` joins them with
 `cloud-init devel make-mime` into `dist/Ubuntu-26.04.user-data`, a MIME
-multipart file, and copies `Ubuntu-26.04.meta-data` beside it. Edit `src/`,
-never `dist/`. Each release publishes both; users download them to
-`%USERPROFILE%\.cloud-init\`, matching an instance named `Ubuntu-26.04`, the
+multipart file. Edit `src/`, never `dist/`. Each release publishes it; users
+download it to `%USERPROFILE%\.cloud-init\` and write the meta-data beside it
+from the example in `README.md`, matching an instance named `Ubuntu-26.04`, the
 default name from `wsl --install Ubuntu-26.04`. It runs once, on first boot,
 and Ubuntu's OOBE (`/usr/lib/wsl/wsl-setup`) waits for it. Read
 `docs/build.md` before you add, rename or renumber a part.
@@ -85,9 +85,10 @@ side.
 The repo is public. No usernames, emails, signing keys, hostnames or
 `/mnt/c/Users/<name>/` paths in any file here; they belong in the user's
 private meta-data. `invoke validate` fails on such a path in `src/` or
-`dist/`. `Ubuntu-26.04.meta-data` is a template: identifying values
+`dist/`. The README's meta-data example is public too: identifying values
 stay empty, and only generic defaults such as `vscode_extensions` and
-`gh_extensions` are filled in.
+`gh_extensions` are filled in. A key added to the user-data goes into the
+example, which the `readme-example` case checks.
 
 ## Validate
 

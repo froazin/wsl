@@ -27,7 +27,7 @@ flowchart LR
     review -->|comments| pr
 ```
 
-- **`paths-ignore`** on the `pull_request` trigger skips the whole workflow when every file a PR changes is Markdown, or under `docs/`, `.claude/` or `.vscode/`, or is `.github/dependabot.yml` or `LICENSE`. The list names what's safe to skip, so a new kind of file is checked until it's added to it. The release workflow uses the same list.
+- **`paths`** on the `pull_request` trigger skips the whole workflow when every file a PR changes is Markdown other than `README.md`, or under `docs/`, `.claude/` or `.vscode/`, or is `.github/dependabot.yml` or `LICENSE`. `README.md` runs the checks, because it holds the meta-data example that `invoke validate` reads. The list starts with `**`, every file, and each later `!` pattern skips what it matches, unless a later pattern takes it back, as `README.md` does after `!**.md`. The list names what's safe to skip, so a new kind of file is checked until it's added to it. The release workflow uses the same list.
 - `code-review` needs `checks`, so a failure skips the review, and the workflow's own result is the one check to read before merging.
 
 ## Checks
@@ -68,7 +68,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 
 - **No end-to-end tests on a PR.** They take a long time on Windows runners, so they run on `main` before a release instead (see [Releases](releases.md#decisions)).
 - **The code review after the checks.** No tokens go on code that doesn't pass its checks.
-- **GitHub's path filter, not a job that lists the files.** `paths-ignore` is built in, but it can only run all of the workflow or none of it. A docs-only PR gets no checks or review.
+- **GitHub's path filter, not a job that lists the files.** `paths` is built in, but it can only run all of the workflow or none of it. A docs-only PR gets no checks or review. It's `paths` rather than `paths-ignore`, because only `paths` can take back one file, `README.md`, from a pattern that skips it.
 - **No gate job.** GitHub marks the workflow failed when any job fails, and no status check is required, so a job that sums up the others adds nothing.
 - **Resolved threads, not a failing check.** A wrong finding is resolved with a reply rather than a re-run. That's why Nits are capped.
 

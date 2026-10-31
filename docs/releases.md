@@ -15,7 +15,7 @@ How [`.github/workflows/release.yml`](../.github/workflows/release.yml) releases
 
 ## Overview
 
-The workflow runs on every push to `main`, with the same `paths-ignore` as [CI](ci.md#overview), so a docs-only push runs nothing. Runs share the `release` concurrency group: a run waits for the one in progress, and a newer push replaces a run that's still waiting, so two releases never race. The `release` job only publishes when its commit is still the head of `main`, because a newer push's run releases the same changes. This flowchart shows the jobs:
+The workflow runs on every push to `main`, with the same `paths` filter as [CI](ci.md#overview), so a docs-only push runs nothing. Runs share the `release` concurrency group: a run waits for the one in progress, and a newer push replaces a run that's still waiting, so two releases never race. The `release` job only publishes when its commit is still the head of `main`, because a newer push's run releases the same changes. This flowchart shows the jobs:
 
 ```mermaid
 flowchart LR
@@ -53,7 +53,8 @@ semantic-release prints a version only on `main`, and must run from the reposito
 ## Tags and assets
 
 - GitHub creates the tag `vX.Y.Z` on the commit the run built, through `gh release create --target`. The release notes are GitHub's generated notes.
-- The assets are the files in `dist/`: `Ubuntu-26.04.user-data` and `Ubuntu-26.04.meta-data`. The README downloads them from `https://github.com/froazin/wsl/releases/latest/download/<file>`.
+- The assets are the files in `dist/`: `Ubuntu-26.04.user-data`. The README downloads it from `https://github.com/froazin/wsl/releases/latest/download/<file>`.
+- No meta-data is released. Users write their own from the README's [meta-data example](../README.md#the-meta-data-example).
 - The user-data's parts are base64 in the MIME file, so the README sends readers to `src/Ubuntu-26.04.user-data.d/` at the release's tag to read them.
 
 ## End-to-end tests
@@ -62,12 +63,12 @@ The `e2e` job installs an instance the way the README tells users to, on a raw `
 
 | Case | Meta-data |
 | --- | --- |
-| `with a user` | The template with `username`, `git_name` and `git_email` filled in |
-| `without a user` | The template as it is, with no username |
+| `with a user` | The README's example with `username`, `git_name` and `git_email` filled in |
+| `without a user` | The README's example as it is, with no username |
 
 Each step is a script in `.github/scripts/`:
 
-1. **`seed-cloud-init.ps1`** copies the user-data to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data`, and writes the meta-data template there with the case's values filled into its empty keys.
+1. **`seed-cloud-init.ps1`** copies the user-data to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data`, and writes the README's meta-data example there with the case's values filled into its empty keys. It finds the example by the `<!-- meta-data example -->` comment before it, as `invoke validate` does.
 1. **`install-instance.ps1`** runs `wsl --install Ubuntu-26.04 --no-launch --web-download`.
 1. **`wait-for-cloud-init.ps1`** runs `cloud-init status --wait` as root, which boots the instance for the first time, then shows cloud-init's status and logs. It fails if cloud-init didn't use the WSL datasource, or reports any error or recoverable error. A recoverable error that every instance gets, listed in `$expected`, is only logged.
 1. **`restart-instance.ps1`** runs `wsl --terminate`, as the README says to, then fails unless `systemctl is-system-running --wait` says `running`.
@@ -87,7 +88,7 @@ Each step is a script in `.github/scripts/`:
 - **python-semantic-release over setuptools-scm.** setuptools-scm can only guess the next patch version from the last tag. semantic-release reads Conventional Commits, so a `feat` or breaking change bumps the right part.
 - **End-to-end tests before a release, not on each pull request.** They take a long time on Windows runners, and only what's released reaches users.
 - **A raw runner, not a setup action.** The `e2e` job installs the instance with `wsl.exe` as a user would, so it tests the README's steps rather than an action's.
-- **The meta-data template, filled in.** The `e2e` job fills in the built `Ubuntu-26.04.meta-data` rather than using a fixture, so the shipped defaults, such as the gh extension, are tested too.
+- **The README's example, filled in.** The `e2e` job fills in the meta-data example users copy rather than using a fixture, so its defaults, such as the gh extension, are tested too.
 - **Fail on recoverable errors.** A deprecated key or a schema warning means user-data that needs fixing. The exception is the network wait that every instance gets, which [Provisioning](provisioning.md#limits) explains. It's logged rather than annotated, so the run's annotations only show something to act on.
 - **The tag from GitHub's API.** The `release` job needs no checkout or Git credentials to create it.
 
@@ -96,7 +97,7 @@ Each step is a script in `.github/scripts/`:
 - The tag GitHub creates isn't signed by a maintainer's key.
 - A failed end-to-end test on `main` blocks every release until a fix lands on `main`. The next run then releases both changes.
 - The user-data's parts are base64, so a release's user-data can't be read or diffed as text.
-- A change to the end-to-end scripts that doesn't change `dist/` isn't tested until the next release.
+- A change to the end-to-end scripts, or to the README's meta-data example, that doesn't change `dist/` isn't tested on a first boot until the next release.
 - The `build` job takes GitHub's "latest" release as the one to compare with. That holds while every release comes from this workflow.
 - The end-to-end tests run a command as root for the first boot, which skips Ubuntu's first-run setup. That setup writes the default user to `/etc/wsl.conf`, so it isn't tested.
 - VS Code and the other Windows tools aren't on the runner, so their links are checked but the VS Code extension installs are skipped. Mirrored networking isn't tested.

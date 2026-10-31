@@ -13,7 +13,6 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 | Path | Holds |
 | --- | --- |
 | `src/Ubuntu-26.04.user-data.d/` | The user-data as cloud-config parts, one per feature, merged in name order. Before you change them, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
-| `src/Ubuntu-26.04.meta-data` | The meta-data template users fill in, released as it is. Before you change it, read [docs/meta-data.md](docs/meta-data.md) |
 | `dist/` | The built files each release publishes. `invoke build` writes it, and Git ignores it |
 | `tasks.py`, `scripts/build/` | The `build` and `validate` tasks: building `src/` into `dist/` with `cloud-init devel make-mime`, and checking the result against the cases in `scripts/build/cases.py`. Before you change them, read [docs/build.md](docs/build.md). The `validate-user-data` skill says how to run the validation and what each case proves |
 | `scripts/release/` | The `version` task: whether `dist/` makes a release, and its version. Before you change it, read [docs/releases.md](docs/releases.md) |
@@ -24,14 +23,14 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 | `.github/dependabot.yml` | The weekly action and uv updates. See [Dependabot](docs/ci.md#dependabot) |
 | `REVIEW.md` | Instructions for CI's Claude code review: what counts as Important, the Nit cap, what to skip, what to always check and the evidence a finding needs |
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |
-| `README.md` | The entry point for people who use the config, with the install steps and the `.wslconfig` example |
+| `README.md` | The entry point for people who use the config, with the install steps, the meta-data example and the `.wslconfig` example. `invoke validate` and the end-to-end tests read the meta-data example after its `<!-- meta-data example -->` comment. Before you change the example, read [docs/meta-data.md](docs/meta-data.md) |
 | `CONTRIBUTING.md` | Who can open issues and pull requests, how changes land, the set-up and the checks to run |
 | `.editorconfig`, `.gitattributes` | shfmt and editor settings, and LF line endings for every file |
 | `.vscode/settings.json` | Shared VS Code settings: Jinja YAML highlighting for the cloud-init files, and TOML for `.wslconfig` |
 
 ## Conventions
 
-- **Never commit identifying data.** No real names, emails, usernames, signing keys, hostnames or `/mnt/c/Users/<name>/` paths in any file. They go in the user's private meta-data. Use placeholders such as `<you>` or `jdoe` in examples.
+- **Never commit identifying data.** No real names, emails, usernames, signing keys, hostnames or `/mnt/c/Users/<name>/` paths in any file, the README's meta-data example included. They go in the user's private meta-data. Use placeholders such as `<you>` or `jdoe` in examples.
 - **Prefer native mechanisms:** cloud-init modules, and official installers run as the user so they can update themselves, over custom glue.
 - **Edit `src/`, never `dist/`.** Run `uv run invoke build` to rebuild `dist/`.
 - **Each part stands alone.** cloud-init renders each part's Jinja on its own, so a part sets every Jinja variable it uses, and every part keeps the shared `merge_how` that appends lists. See [docs/build.md](docs/build.md#how-the-build-works).

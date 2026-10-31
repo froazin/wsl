@@ -12,7 +12,7 @@ import sys
 from collections.abc import Callable
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from cloudinit import handlers, helpers
@@ -24,11 +24,18 @@ from cloudinit.util import shellify
 
 from scripts.build.build import part_names, part_type
 from scripts.build.cases import Case, cases, instance_data
-from scripts.build.config import DIST_FOLDER, JINJA_HEADER, JINJA_PART_TYPE, PARTS_SUFFIX, SRC_FOLDER
+from scripts.build.config import (
+    DIST_FOLDER,
+    JINJA_HEADER,
+    JINJA_PART_TYPE,
+    META_DATA_EXAMPLE_MARKER,
+    PARTS_SUFFIX,
+    README_FILE,
+    SRC_FOLDER,
+)
 from scripts.build.errors import BuildError
 
 USER_DATA = "Ubuntu-26.04.user-data"
-META_DATA = "Ubuntu-26.04.meta-data"
 REQUIRED_COMMANDS = ("cloud-init", "git", "shellcheck", "ssh-keygen")
 MERGED_LISTS = ("packages", "write_files", "runcmd")
 LEAKED_PATH = re.compile(r"/mnt/c/Users/[^<*/ ]+/")
@@ -37,30 +44,29 @@ LEAKED_PATH = re.compile(r"/mnt/c/Users/[^<*/ ]+/")
 type Doc = dict[str, Any]
 
 
-def validate(src: str = SRC_FOLDER, dist: str = DIST_FOLDER) -> None:
+def validate(src: str = SRC_FOLDER, dist: str = DIST_FOLDER, readme: str = README_FILE) -> None:
     """Checks dist/ against every case, and src/ and dist/ as a whole. Prints `ok  <case>` or `FAIL: ...` lines.
 
-    Raises a BuildError when a check fails, or when a command or file the checks need is missing.
+    One case renders with the meta-data example in readme. Raises a BuildError when a check fails, or when a command or
+    file the checks need is missing.
     """
 
     missing = [command for command in REQUIRED_COMMANDS if shutil.which(command) is None]
     if missing:
         raise BuildError(f"Missing required commands: {', '.join(missing)}.")
-    user_data_path, meta_data_path = os.path.join(dist, USER_DATA), os.path.join(dist, META_DATA)
-    for path in (user_data_path, meta_data_path):
-        if not os.path.isfile(path):
-            raise BuildError(f"{path} not found. Run `invoke build` first.")
+    user_data_path = os.path.join(dist, USER_DATA)
+    if not os.path.isfile(user_data_path):
+        raise BuildError(f"{user_data_path} not found. Run `invoke build` first.")
     with open(user_data_path, "rb") as f:
         user_data = f.read()
-    with open(meta_data_path) as f:
-        shipped = yaml.safe_load(f)
+    example = meta_data_example(readme)
     parts_dir = os.path.join(src, USER_DATA + PARTS_SUFFIX)
 
     failed = False
     with TemporaryDirectory() as work:
         signer, ecdsa = keygen(work, "signer", "-t", "ed25519"), keygen(work, "ecdsa", "-t", "ecdsa", "-b", "256")
         start = None
-        for case in cases(work, signer, ecdsa, shipped):
+        for case in cases(work, signer, ecdsa, example):
             doc, problems = check_case(case, user_data, parts_dir, os.path.join(work, case.name))
             for problem in problems:
                 print(f"FAIL: {case.name}: {problem}")
@@ -80,6 +86,26 @@ def validate(src: str = SRC_FOLDER, dist: str = DIST_FOLDER) -> None:
         sys.stdout.flush()  # So the FAIL lines come before the error, which goes to stderr.
         raise BuildError("The user-data failed validation. See the FAIL lines above.")
     print("All cases passed.")
+
+
+def meta_data_example(readme: str) -> dict[str, Any]:
+    """Returns the meta-data example in readme: the yaml code block straight after META_DATA_EXAMPLE_MARKER.
+
+    Raises a BuildError when readme has no such block, or the block isn't a YAML mapping.
+    """
+
+    with open(readme) as f:
+        text = f.read()
+    found = re.search(rf"^{re.escape(META_DATA_EXAMPLE_MARKER)}\n+```yaml\n(.*?)^```$", text, re.MULTILINE | re.DOTALL)
+    if not found:
+        raise BuildError(f"{readme} has no yaml code block straight after {META_DATA_EXAMPLE_MARKER}.")
+    try:
+        example = yaml.safe_load(found.group(1))
+    except yaml.YAMLError as error:
+        raise BuildError(f"The meta-data example in {readme} is not valid YAML: {error}") from error
+    if not isinstance(example, dict):
+        raise BuildError(f"The meta-data example in {readme} is not a YAML mapping.")
+    return cast(dict[str, Any], example)
 
 
 def keygen(work: str, name: str, *options: str) -> str:

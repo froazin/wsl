@@ -1,6 +1,6 @@
 ---
 name: validate-user-data
-description: Build and validate the WSL cloud-init user-data (the parts in src/Ubuntu-26.04.user-data.d/) against mock meta-data. Use after any change to a part in src/Ubuntu-26.04.user-data.d/, to src/Ubuntu-26.04.meta-data or to scripts/build/, before saying a change works.
+description: Build and validate the WSL cloud-init user-data (the parts in src/Ubuntu-26.04.user-data.d/) against mock meta-data. Use after any change to a part in src/Ubuntu-26.04.user-data.d/, to the meta-data example in README.md or to scripts/build/, before saying a change works.
 allowed-tools: Bash(uv run invoke validate) Bash(uv run invoke validate *) Bash(uv run invoke build)
 ---
 
@@ -27,7 +27,7 @@ cases are in `scripts/build/cases.py`:
 | `empty-values`, `no-meta-data` | nothing user-specific renders, YAML stays valid |
 | `hostile-name` | `"`, `\`, `#`, `;`, `'` and `{{ }}` in `git_name` read back exactly through `git config` |
 | `legacy-noreply`, `plain-email`, `path-traversal` | the `~/workspaces/github.com/<owner>` extraction only accepts GitHub noreply addresses with a safe owner name |
-| `shipped-meta-data` | `dist/Ubuntu-26.04.meta-data` parses and its `vscode_extensions` and `gh_extensions` install |
+| `readme-example` | the README's meta-data example, after `<!-- meta-data example -->`, parses and its `vscode_extensions` and `gh_extensions` install |
 | `extensions-string` | a comma/space-separated `vscode_extensions` string installs each ID |
 | `extensions-hostile` | only `publisher.name` IDs reach the shell; every other entry is reported with `printf`, ASCII-escaped, including non-BMP characters and backslashes |
 | `extensions-mapping`, `extensions-number`, `extensions-no-user` | other types install nothing, and nothing installs without a user |
@@ -56,8 +56,8 @@ and fails if a concrete `/mnt/c/Users/<name>/` path appears in `src/` or
 
 It ends with `All cases passed.` and exit 0. Otherwise each `FAIL:` line
 names the case and what broke, and it exits 1. It also exits 1 when a
-command it needs (`cloud-init`, `git`, `shellcheck`, `ssh-keygen`) or a file
-in `dist/` is missing. If `uv run` can't import `cloudinit`, set up the venv
+command it needs (`cloud-init`, `git`, `shellcheck`, `ssh-keygen`), a file
+in `dist/` or the README's meta-data example is missing. If `uv run` can't import `cloudinit`, set up the venv
 as `CONTRIBUTING.md` describes.
 
 When adding a meta-data key or a new conditional block, add a case for it to

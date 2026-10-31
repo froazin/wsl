@@ -27,10 +27,10 @@ def test_cases_fill_in_the_instance_id_and_defaults():
     assert by_name["signingkey-ecdsa"].expect["signer_key"] == "/keys/ecdsa"
 
 
-def test_the_shipped_meta_data_case_reads_the_template_with_a_username():
-    shipped = next(case for case in table() if case.name == "shipped-meta-data")
+def test_the_readme_example_case_reads_the_example_with_a_username():
+    example = next(case for case in table() if case.name == "readme-example")
 
-    assert shipped.meta_data == {"instance-id": "ubuntu-wsl", "username": "jdoe"}
+    assert example.meta_data == {"instance-id": "ubuntu-wsl", "username": "jdoe"}
 
 
 def test_skipped_entries_are_ascii_with_backslash_escapes():

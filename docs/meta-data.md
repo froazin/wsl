@@ -1,6 +1,6 @@
 # WSL meta-data
 
-How the WSL user-data reads each key of [`Ubuntu-26.04.meta-data`](../src/Ubuntu-26.04.meta-data): how it normalises and validates the value, where the value ends up and how it reports a value it rejects. It's for engineers adding or changing a meta-data key. [Provisioning](provisioning.md) covers the rest of the user-data.
+How the WSL user-data reads each key of the meta-data, which users write from the README's [meta-data example](../README.md#the-meta-data-example): how it normalises and validates the value, where the value ends up and how it reports a value it rejects. It's for engineers adding or changing a meta-data key. [Provisioning](provisioning.md) covers the rest of the user-data.
 
 ## Contents
 
@@ -15,7 +15,9 @@ How the WSL user-data reads each key of [`Ubuntu-26.04.meta-data`](../src/Ubuntu
 
 ## Overview
 
-The meta-data file is a YAML template with the identifying values left empty. The build copies it to `dist/` as it is, and each release ships it. The user downloads it to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`, fills it in and keeps the filled copy out of the repository. cloud-init's WSL datasource reads it.
+The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`, by copying the README's example and filling it in. Releases don't ship it. The example leaves the identifying values empty, and its comments describe each key. cloud-init's WSL datasource reads the file.
+
+The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. `invoke validate` renders the user-data with it in the `readme-example` case, and the [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, so both find it by that comment. Keep the comment and the block together, and add every new key to the example.
 
 Each key is read in the parts of [`src/Ubuntu-26.04.user-data.d/`](../src/Ubuntu-26.04.user-data.d/) that use it, at the top of the part, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each part on its own, so a part that needs a key reads it itself, even when another part reads it too.
 
@@ -39,7 +41,7 @@ flowchart LR
 
 Every key apart from `instance-id` needs `username`: without one, the user-data writes no `~/.gitconfig` or other file into a home, and installs nothing as a user.
 
-| Key | Expected type | Shipped value | Read in | Ends up in |
+| Key | Expected type | Value in the example | Read in | Ends up in |
 | --- | --- | --- | --- | --- |
 | `instance-id` | String | `ubuntu-wsl` | None | Read by the datasource, which needs it. No part uses it |
 | `username` | String | Empty | Every part from `50-virtualisation` on | `users:`, every `runuser` command and the home paths |
@@ -115,7 +117,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 
 ## Security and privacy
 
-- The meta-data holds everything identifying. The shipped template keeps those values empty and fills in only generic defaults, the two extension lists.
+- The meta-data holds everything identifying. The README's example keeps those values empty and fills in only generic defaults, the two extension lists.
 - Meta-data is the user's own input, but the user-data still treats it as untrusted where it reaches a shell. Only entries that pass the checks above are written into a command, and rejected ones go into `printf` as a quoted argument, not into the command text.
 - Values written into `~/.gitconfig` go through `gitval`, so `"`, `\` and comment characters stay inside the value.
 - `allowed_signers` trusts the key only in the `git` namespace.
@@ -126,7 +128,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 - **Accept a string for a list.** A comma or space-separated string is split into entries, so a list written on one line still works (inferred: no comment gives the reason).
 - **Report rather than fail.** A bad entry is skipped and named in the log, so the rest of the instance still builds.
 - **Derive the workspace from a noreply email only.** It's the one email form that holds the GitHub username (inferred).
-- **`*` as the fallback principal.** It keeps verification working when the email can't be written safely as a principal, at the cost of trusting the key for any identity (inferred: the meta-data comment states the fallback, not the reason).
+- **`*` as the fallback principal.** It keeps verification working when the email can't be written safely as a principal, at the cost of trusting the key for any identity (inferred: the example's comment states the fallback, not the reason).
 
 ## Limits
 

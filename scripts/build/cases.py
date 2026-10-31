@@ -61,11 +61,11 @@ def instance_data(meta_data: dict[str, Any]) -> dict[str, Any]:
     return {"v1": V1, "ds": {"meta_data": meta_data}}
 
 
-def cases(keys_dir: str, signer: str, ecdsa: str, shipped: dict[str, Any]) -> list[Case]:
+def cases(keys_dir: str, signer: str, ecdsa: str, example: dict[str, Any]) -> list[Case]:
     """Returns every case, with the defaults filled in.
 
-    keys_dir holds the private keys `signer` (ed25519) and `ecdsa`, whose public keys are signer and ecdsa. shipped is
-    the meta-data template in dist/, which one case renders with as it is, plus a username.
+    keys_dir holds the private keys `signer` (ed25519) and `ecdsa`, whose public keys are signer and ecdsa. example is
+    the README's meta-data example, which one case renders with as it is, plus a username.
     """
 
     user = {"user": True, "gh_dir": "", "git_name": ""}
@@ -103,9 +103,9 @@ def cases(keys_dir: str, signer: str, ecdsa: str, shipped: dict[str, Any]) -> li
         "signingkey-type-only": ({"username": "jdoe", "git_signingkey": "ssh-ed25519"}, user),
         "signingkey-list": ({"username": "jdoe", "git_signingkey": [signer]}, user),
         "signingkey-no-user": ({"git_email": "jane@example.com", "git_signingkey": signer}, no_user),
-        "shipped-meta-data": ({**shipped, "username": "jdoe"},
-                              {**user, "extensions": ["Anthropic.claude-code", "ms-python.python"],
-                               "gh_extensions": ["https://github.com/nektos/gh-act"]}),
+        "readme-example": ({**example, "username": "jdoe"},
+                           {**user, "extensions": ["Anthropic.claude-code", "ms-python.python"],
+                            "gh_extensions": ["https://github.com/nektos/gh-act"]}),
         "extensions-string": ({"username": "jdoe", "vscode_extensions": "Anthropic.claude-code, ms-python.python"},
                               {**user, "extensions": ["Anthropic.claude-code", "ms-python.python"]}),
         "extensions-hostile": ({"username": "jdoe", "vscode_extensions": ["ok.ext", *BAD_EXTENSIONS, "Pub-1.name-2"]},

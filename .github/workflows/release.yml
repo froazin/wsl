@@ -5,14 +5,16 @@ on:
   push:
     branches:
       - main
-    # A change only to these can't change the config, so it can't make a release. The same list as the CI workflow's.
-    paths-ignore:
-      - "**.md"
-      - ".claude/**"
-      - ".github/dependabot.yml"
-      - ".vscode/**"
-      - "docs/**"
-      - "LICENSE"
+    # A change only to the docs can't change the config, so it can't make a release. The same list as the CI workflow's.
+    paths:
+      - "**"
+      - "!**.md"
+      - "README.md"
+      - "!.claude/**"
+      - "!.github/dependabot.yml"
+      - "!.vscode/**"
+      - "!docs/**"
+      - "!LICENSE"
 
 permissions:
   contents: read
@@ -137,7 +139,7 @@ jobs:
           E2E_GIT_EMAIL: ${{ matrix.git-email }}
         run: >-
           ./.github/scripts/seed-cloud-init.ps1 -Instance $env:INSTANCE -UserData dist/Ubuntu-26.04.user-data
-          -MetaData dist/Ubuntu-26.04.meta-data -Username $env:E2E_USER -GitName $env:E2E_GIT_NAME -GitEmail $env:E2E_GIT_EMAIL
+          -Readme README.md -Username $env:E2E_USER -GitName $env:E2E_GIT_NAME -GitEmail $env:E2E_GIT_EMAIL
 
       - name: Install the distribution
         run: ./.github/scripts/install-instance.ps1 -Instance $env:INSTANCE
