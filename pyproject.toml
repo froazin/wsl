@@ -22,9 +22,11 @@ python-preference = "only-system"
 
 [tool.pytest.ini_options]
 minversion = "9.1"
-testpaths = ["devel"]
-# devel/hooks holds hook scripts, which the tests import as top-level modules.
-pythonpath = [".", "devel/hooks"]
+testpaths = ["scripts"]
+# scripts/hooks holds hook scripts, which the tests import as top-level modules.
+pythonpath = [".", "scripts/hooks"]
+# pytest's defaults without "build", which would skip scripts/build.
+norecursedirs = [".*", "*.egg", "_darcs", "CVS", "dist", "node_modules", "venv", "{arch}"]
 # Test files in different packages can share a name, such as test_testing.py, so import them by path.
 addopts = ["-ra", "-q", "-p", "no:cacheprovider", "--import-mode=importlib"]
 

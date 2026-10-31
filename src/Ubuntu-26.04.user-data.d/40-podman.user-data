@@ -1,0 +1,55 @@
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+packages:
+  - podman
+  - podman-docker
+  - podman-compose
+  - buildah
+  - skopeo
+
+write_files:
+  - path: /etc/containers/nodocker
+    permissions: "0644"
+    content: ""
+
+  # runcmd enables podman.socket globally. In root's user manager, which
+  # `sudo su` starts, it would be a second rootful API beside the system one.
+  - path: /etc/systemd/user/podman.socket.d/10-not-root.conf
+    permissions: "0644"
+    content: |
+      [Unit]
+      ConditionUser=!root
+
+  # Podman wants / shared; backs up the [boot] command in wsl.conf.
+  - path: /etc/systemd/system/make-root-rshared.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Make / a recursively shared mount
+      ConditionVirtualization=wsl
+      DefaultDependencies=no
+      After=local-fs.target
+      Before=sysinit.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/mount --make-rshared /
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=sysinit.target
+
+runcmd:
+  - [systemctl, enable, --now, make-root-rshared.service]
+  # Not `systemctl --user`: runcmd has no user bus. Keep this in a part before
+  # the first `runuser -l`, which starts the user's manager, the only time it
+  # reads global wants.
+  - [systemctl, --global, enable, podman.socket]
+  # Root's API; podman-docker's /run/docker.sock points at it.
+  - [systemctl, enable, --now, podman.socket]

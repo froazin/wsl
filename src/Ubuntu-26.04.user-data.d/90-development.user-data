@@ -1,0 +1,37 @@
+## template: jinja
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+{% set user = ds.meta_data.username or '' %}
+{% macro workspace(repo) %}workspaces/{{ repo.split('://', 1)[-1].removesuffix('.git') }}{% endmacro %}
+{% set nvm_repo = 'https://github.com/nvm-sh/nvm.git' %}
+{% set nvm_dir = '~/' ~ workspace(nvm_repo) %}
+
+packages:
+  - shellcheck
+  - shfmt
+{% if user %}
+
+runcmd:
+  # Official installers, run as the user so they can update themselves. The
+  # dotfiles' .zshenv puts ~/.local/bin and ~/.pulumi/bin on PATH.
+  - [runuser, -l, "{{ user }}", -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh"]
+  - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://get.pulumi.com | sh -s -- --no-edit-path"]
+  # Biome's installer needs bash.
+  - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://biomejs.dev/install | bash -s -- --no-modify-path"]
+  # nvm's install.sh installs its own pinned release into ~/.nvm, so check out
+  # the newest tag first; rerunning this updates it. PROFILE=/dev/null keeps it
+  # out of the shell profiles.
+  - [runuser, -l, "{{ user }}", -c, 'if [ -d {{ nvm_dir }}/.git ]; then git -C {{ nvm_dir }} fetch --quiet --tags; else git clone --quiet {{ nvm_repo }} {{ nvm_dir }}; fi && cd {{ nvm_dir }} && git checkout --quiet "$(git describe --abbrev=0 --tags --match "v[0-9]*" "$(git rev-list --tags --max-count=1)")" && PROFILE=/dev/null bash install.sh']
+  # Claude Code's installer needs bash.
+  - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://claude.ai/install.sh | bash"]
+  # ant (Claude Platform CLI, not apt's Apache Ant) has no installer or
+  # self-update; rerunning this updates it. tar -m stamps the install time,
+  # which is how zsh knows to regenerate its completion.
+  - [runuser, -l, "{{ user }}", -c, 'v="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/anthropics/anthropic-cli/releases/latest)" && v="${v##*/v}" && case "$(uname -m)" in x86_64) a=amd64 ;; aarch64) a=arm64 ;; esac && mkdir -p ~/.local/bin && curl -fsSL "https://github.com/anthropics/anthropic-cli/releases/download/v$v/ant_${v}_linux_$a.tar.gz" | tar -xzmf - -C ~/.local/bin ant']
+{% endif %}
