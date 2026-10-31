@@ -7,7 +7,7 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 - The packages a zsh workstation needs, plus podman and tools such as `gh`, `ripgrep`, `fd` and `btop`.
 - A KVM and libvirt stack for running virtual machines inside WSL.
 - podman's Docker-compatible API socket: rootless for every user, and the system socket for root.
-- `/etc/wsl.conf` with systemd on, and swap off to match [`.wslconfig`](src/.wslconfig).
+- `/etc/wsl.conf` with systemd on, and swap off, which WSL turns on by default.
 - Windows tools (VS Code, the 1Password CLI, OpenSSH and `clip`) linked into the Linux `PATH`, and `$BROWSER` set so `xdg-open` opens things in Windows.
 - A user with zsh and passwordless sudo, when you give a username.
 - For that user: `uv`, `pulumi`, Biome, `nvm`, Claude Code, the Claude Platform CLI (`ant`) and the VS Code and GitHub CLI extensions you list.
@@ -16,27 +16,25 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 
 ## Using it
 
-You need Windows with WSL 2. The config has three files:
+You need Windows with WSL 2. Each [release](https://github.com/froazin/wsl/releases) has two files:
 
 | File | Copy to | What it is |
 | --- | --- | --- |
-| [`src/.wslconfig`](src/.wslconfig) | `%USERPROFILE%\.wslconfig` | Settings for the WSL 2 virtual machine, shared by every instance. Check `processors` and `memory` fit your machine. `networkingMode=Mirrored` needs Windows 11 22H2 or later: where it isn't supported, WSL falls back to no network, so remove the line |
-| [`src/Ubuntu-26.04.user-data`](src/Ubuntu-26.04.user-data) | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | The cloud-init config. It holds nothing personal |
-| [`src/Ubuntu-26.04.meta-data`](src/Ubuntu-26.04.meta-data) | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data` | Your username, git identity and extension lists. Fill it in, and keep your copy to yourself |
+| `Ubuntu-26.04.user-data` | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | The cloud-init config. It holds nothing personal |
+| `Ubuntu-26.04.meta-data` | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data` | Your username, git identity and extension lists. Fill it in, and keep your copy to yourself |
 
-1. Copy the files. From PowerShell, this downloads the two cloud-init files:
+1. Download the latest release's files. From PowerShell:
 
    ```powershell
-   $base = 'https://raw.githubusercontent.com/froazin/wsl/main/src'
+   $base = 'https://github.com/froazin/wsl/releases/latest/download'
    New-Item -ItemType Directory -Force "$env:USERPROFILE\.cloud-init" | Out-Null
    foreach ($f in 'Ubuntu-26.04.user-data', 'Ubuntu-26.04.meta-data') {
        Invoke-WebRequest "$base/$f" -OutFile "$env:USERPROFILE\.cloud-init\$f"
    }
    ```
 
-   Merge `.wslconfig` into yours by hand, if you already have one.
-
 1. Fill in `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`. Its comments describe each value, and an empty value is skipped.
+1. Optionally, set up `.wslconfig` as [The .wslconfig example](#the-wslconfig-example) describes.
 1. Install the distribution under its default name, which is the name cloud-init matches the files by:
 
    ```powershell
@@ -50,6 +48,42 @@ You need Windows with WSL 2. The config has three files:
    ```powershell
    wsl --terminate Ubuntu-26.04
    ```
+
+### Reading what it runs
+
+The user-data is a MIME multipart file of cloud-config parts, and each part is base64-encoded, so it isn't readable as text. Read the parts in [`src/Ubuntu-26.04.user-data.d/`](src/Ubuntu-26.04.user-data.d/) at the release's tag instead: `https://github.com/froazin/wsl/tree/<tag>/src/Ubuntu-26.04.user-data.d`, with the tag, such as `v1.2.3`, from the release's page.
+
+### The .wslconfig example
+
+`%USERPROFILE%\.wslconfig` holds the settings for the WSL 2 virtual machine, shared by every instance. The config works without one. This example suits a large workstation: copy it, or merge it into yours by hand.
+
+```ini
+[wsl2]
+networkingMode=Mirrored
+
+dnsTunneling=true
+autoProxy=true
+
+swap=0
+defaultVhdSize=64GB
+
+processors=12
+memory=32GB
+kernelCommandLine=cgroup_no_v1=all
+
+nestedVirtualization=true
+
+[general]
+instanceIdleTimeout=-1
+
+[experimental]
+hostAddressLoopback=true
+sparseVhd=true
+```
+
+- Check `processors` and `memory` fit your machine.
+- `networkingMode=Mirrored` needs Windows 11 22H2 or later. Where it isn't supported, WSL falls back to no network, so remove the line.
+- WSL reads the file when its virtual machine starts, so run `wsl --shutdown` after you change it.
 
 ### Without a username
 
@@ -78,9 +112,10 @@ git clone https://github.com/froazin/dotfiles.git ~/workspaces/github.com/froazi
 PATH="$HOME/.local/bin:$HOME/.pulumi/bin:$PATH" sh ~/workspaces/github.com/froazin/dotfiles/src/install.sh
 ```
 
+
 ### Testing a change
 
-Copy the files as `ci-test.user-data` and `ci-test.meta-data` to match a throwaway instance, then install it and remove it when you're done:
+Build the files with `uv run invoke build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy `dist/Ubuntu-26.04.user-data` and `dist/Ubuntu-26.04.meta-data` as `ci-test.user-data` and `ci-test.meta-data` to match a throwaway instance, then install it and remove it when you're done:
 
 ```powershell
 wsl --install Ubuntu-26.04 --name ci-test
@@ -91,29 +126,32 @@ WSL instances share one cgroup tree, so stop your main instance first if you're 
 
 ### Making it your own
 
-Fork the repository and change your copy. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`Ubuntu-26.04.user-data`](src/Ubuntu-26.04.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
+Fork the repository and change the parts in [`src/Ubuntu-26.04.user-data.d/`](src/Ubuntu-26.04.user-data.d/), then build your own files with `uv run invoke build`, which writes them to `dist/`. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`99-dotfiles.user-data`](src/Ubuntu-26.04.user-data.d/99-dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
 
 ## How it works
 
-The config is plain cloud-init. You copy the files into your Windows profile, and cloud-init's WSL datasource reads them on the instance's first boot:
+The config is plain cloud-init, written as one part per feature. `invoke build` joins the parts into one user-data file, because WSL reads only one, and the release workflow publishes it. cloud-init's WSL datasource reads the files on the instance's first boot:
 
 ```mermaid
 flowchart LR
     accTitle: How the files reach the instance
-    accDescr: You copy the three files into your Windows profile. WSL reads .wslconfig. cloud-init reads the user-data and meta-data, renders the Jinja template with the meta-data and runs the cloud-config, which installs the dotfiles for the user and for root.
-    wslconfig["src/.wslconfig"] -->|"copied to the Windows profile"| vm["WSL 2 virtual machine"]
-    userdata["Ubuntu-26.04.user-data"] -->|"copied to .cloud-init"| ds["cloud-init WSL datasource"]
-    metadata["Ubuntu-26.04.meta-data"] -->|"filled in, copied to .cloud-init"| ds
-    ds -->|"renders the Jinja template"| modules["cloud-init modules"]
+    accDescr: invoke build joins the parts in src into one MIME user-data, and the release workflow publishes it with the meta-data template. You download both into your Windows profile and fill in the meta-data. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in name order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
+    parts["src/Ubuntu-26.04.user-data.d/"] -->|"invoke build"| release["GitHub release"]
+    meta["src/Ubuntu-26.04.meta-data"] -->|"copied as it is"| release
+    release -->|"downloaded to .cloud-init, meta-data filled in"| ds["cloud-init WSL datasource"]
+    ds -->|"renders each part, merges them in name order"| modules["cloud-init modules"]
+    wslconfig["optional .wslconfig"] -->|"read by WSL"| vm["WSL 2 virtual machine"]
     vm -->|hosts| modules
     modules -->|"clones and runs install.sh"| dotfiles["froazin/dotfiles"]
 ```
 
 The design docs explain each part, for anyone changing it:
 
-- [Provisioning](docs/provisioning.md): how `.wslconfig` and the user-data's stages and `runcmd` work, and how the user-data is validated.
+- [Provisioning](docs/provisioning.md): how the user-data's parts, stages and `runcmd` work.
 - [WSL meta-data](docs/meta-data.md): how each meta-data key is validated and where it ends up.
-- [CI](docs/ci.md): the checks, the end-to-end tests on Windows runners and the code review that run on each pull request.
+- [Build and validation](docs/build.md): how `tasks.py` and `scripts/` build the parts into `dist/` and check the result.
+- [CI](docs/ci.md): the checks and the code review that run on each pull request.
+- [Releases](docs/releases.md): how `main` is released, with the end-to-end tests on Windows runners.
 
 ## Contributing
 
