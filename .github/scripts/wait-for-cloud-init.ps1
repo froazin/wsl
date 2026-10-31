@@ -49,7 +49,7 @@ if ($LASTEXITCODE -ne 0 -or -not $result) {
 }
 
 # Recoverable errors every instance built from this config gets, which are logged rather than reported. The user-data is a
-# Jinja template, not plain cloud-config, so cloud-init waits for the network at the start of its network stage by
+# MIME multipart file, not plain cloud-config, so cloud-init waits for the network at the start of its network stage by
 # starting systemd-networkd-wait-online.service, which Ubuntu's WSL image masks (observed).
 $expected = @(
     'Failed to wait for network: (?s).*systemd-networkd-wait-online\.service is masked'
