@@ -19,12 +19,13 @@ write_files:
       enabled=true
       appendWindowsPath=false
 
-  # .wslconfig sets swap=0, but swap that WSL attaches anyway is turned off.
+  # WSL attaches swap before systemd starts, by default and even with swap=0 in
+  # .wslconfig, so this turns it off.
   - path: /etc/systemd/system/disable-swap.service
     permissions: "0644"
     content: |
       [Unit]
-      Description=Disable swap to mirror swap=0 in .wslconfig
+      Description=Disable the swap WSL attaches
       ConditionVirtualization=wsl
       After=local-fs.target
 
