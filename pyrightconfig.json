@@ -2,7 +2,5 @@
   "typeCheckingMode": "standard",
   "exclude": ["**/__pycache__", "**/.*"],
   "pythonVersion": "3.14",
-  "venvPath": ".",
-  "venv": ".venv",
   "extraPaths": ["scripts/hooks"]
 }

@@ -2,5 +2,6 @@
 
 from scripts.build.build import build
 from scripts.build.errors import BuildError
+from scripts.build.validation import validate
 
-__all__ = ["BuildError", "build"]
+__all__ = ["BuildError", "build", "validate"]
