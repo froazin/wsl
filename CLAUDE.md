@@ -1,6 +1,6 @@
 # WSL
 
-A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for development from scratch, and installs the [froazin/dotfiles](https://github.com/froazin/dotfiles) into it. It's written as cloud-config parts in `src/`, built into the files each GitHub release publishes. The repository is public, and people copy from it, so it stays generic.
+A reusable cloud-init config that builds a WSL instance for development from scratch, for each distro in `src/distros/`, and installs the [froazin/dotfiles](https://github.com/froazin/dotfiles) into it. It's written as cloud-config fragments in `src/`, which each distro's manifest picks from, built into the files each GitHub release publishes. The repository is public, and people copy from it, so it stays generic.
 
 ## Contents
 
@@ -12,7 +12,9 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 
 | Path | Holds |
 | --- | --- |
-| `src/Ubuntu-26.04.user-data.d/` | The user-data as cloud-config parts, one per feature, merged in name order. Before you change them, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
+| `src/fragments/` | The shared cloud-config fragments, one per feature, merged in name order. Before you change them, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
+| `src/distros/<distro>/` | A distro's `manifest.json`, which lists every fragment in its user-data, and any fragments only it uses. Before you add a distro, change a manifest or add a fragment for one distro, read [docs/distros.md](docs/distros.md) |
+| `schemas/distro-manifest.schema.json`, `scripts/build/manifest.py` | The manifest's schema, and loading each distro and finding its fragments. Before you change them, read [docs/distros.md](docs/distros.md) |
 | `dist/` | The built files each release publishes. `invoke build` writes it, and Git ignores it |
 | `tasks.py`, `scripts/build/` | The `build` and `validate` tasks: building `src/` into `dist/` with `cloud-init devel make-mime`, and checking the result against the cases in `scripts/build/cases.py`. Before you change them, read [docs/build.md](docs/build.md). The `validate-user-data` skill says how to run the validation and what each case proves |
 | `scripts/release/` | The `version` task: whether `dist/` makes a release, and its version. Before you change it, read [docs/releases.md](docs/releases.md) |
@@ -26,16 +28,17 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 | `README.md` | The entry point for people who use the config, with the install steps, the meta-data example and the `.wslconfig` example. `invoke validate` and the end-to-end tests read the meta-data example after its `<!-- meta-data example -->` comment. Before you change the example, read [docs/meta-data.md](docs/meta-data.md) |
 | `CONTRIBUTING.md` | Who can open issues and pull requests, how changes land, the set-up and the checks to run |
 | `.editorconfig`, `.gitattributes` | shfmt and editor settings, and LF line endings for every file |
-| `.vscode/settings.json` | Shared VS Code settings: Jinja YAML highlighting for the cloud-init files, and TOML for `.wslconfig` |
+| `.vscode/settings.json` | Shared VS Code settings: Jinja YAML highlighting for the cloud-init files, TOML for `.wslconfig` and the schema for each `manifest.json` |
 
 ## Conventions
 
 - **Never commit identifying data.** No real names, emails, usernames, signing keys, hostnames or `/mnt/c/Users/<name>/` paths in any file, the README's meta-data example included. They go in the user's private meta-data. Use placeholders such as `<you>` or `jdoe` in examples.
 - **Prefer native mechanisms:** cloud-init modules, and official installers run as the user so they can update themselves, over custom glue.
 - **Edit `src/`, never `dist/`.** Run `uv run invoke build` to rebuild `dist/`.
-- **Each part stands alone.** cloud-init renders each part's Jinja on its own, so a part sets every Jinja variable it uses, and every part keeps the shared `merge_how` that appends lists. See [docs/build.md](docs/build.md#how-the-build-works).
+- **Each fragment stands alone.** cloud-init renders each fragment's Jinja on its own, so a fragment sets every Jinja variable it uses, and every fragment keeps the shared `merge_how` that appends lists. See [docs/build.md](docs/build.md#how-the-build-works).
+- **Share fragments by default.** A fragment goes in a distro's folder only when what it says is wrong for another distro. Split the part that differs out of a shared fragment rather than copying it. Every distro reads the same meta-data keys. See [docs/distros.md](docs/distros.md#shared-or-distro-fragments).
 - **Keep `tasks.py` thin.** A task only calls a package in `scripts/` and turns its error into an exit status. Put logic, and its tests, in `scripts/<package>/`.
-- **Keep `packages` in step with the dotfiles.** The parts' `packages` list the dotfiles modules' dependencies. When a dotfiles module gains a dependency, add it here too.
+- **Keep `packages` in step with the dotfiles.** The fragments' `packages` list the dotfiles modules' dependencies. When a dotfiles module gains a dependency, add it here too.
 - **Don't write outside the repository to test.** Writing to the Windows profile (`%USERPROFILE%\.cloud-init`, `.wslconfig`), or installing or unregistering WSL instances, needs the user's go-ahead.
 - Run the checks in [CONTRIBUTING.md](CONTRIBUTING.md#checks) before you say a change works.
 - Pin every action a workflow uses to a full commit SHA, with its version in a comment.

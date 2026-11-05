@@ -4,7 +4,7 @@ from email.mime.text import MIMEText
 
 import pytest
 
-from scripts.build import BuildError
+from scripts.build import BuildError, Distro
 from scripts.build.validation import (
     expectation_problems,
     indented_tags,
@@ -142,18 +142,24 @@ def test_leaked_paths_are_concrete_windows_profile_paths():
 
 def test_source_problems_read_mime_parts_and_check_tags_only_in_src(tmp_path):
     src, dist = tmp_path / "src", tmp_path / "dist"
-    os.makedirs(src / "x.d")
+    os.makedirs(src / "fragments")
     os.makedirs(dist)
-    (src / "x.d" / "10-a").write_text("## template: jinja\n#cloud-config\n  {% if a %}\n{% endif %}\n")
+    (src / "fragments" / "10-a").write_text("## template: jinja\n#cloud-config\n  {% if a %}\n{% endif %}\n")
+    (src / "fragments" / "20-unused").write_text("#cloud-config\n")
+    distros = [Distro(name="x", fragments=(f"{src}/fragments/10-a",))]
+    readme = tmp_path / "README.md"
+    readme.write_text("Example: /mnt/c/Users/<you>/x\nLeaked: /mnt/c/Users/jdoe/y\n")
     part = MIMEText("path: /mnt/c/Users/jdoe/x\n", "cloud-config", "utf-8")
     part.add_header("Content-Disposition", "attachment", filename="10-a")
     mime = MIMEMultipart()
     mime.attach(part)
     (dist / "x").write_bytes(mime.as_bytes())
 
-    assert source_problems(str(src), str(dist)) == [
+    assert source_problems(str(src), str(dist), distros, str(readme)) == [
+        f"{src}/fragments/20-unused isn't listed in any distro's manifest.json",
         f"{dist}/x:10-a contains a concrete /mnt/c/Users/<name>/ path: path: /mnt/c/Users/jdoe/x",
-        f"{src}/x.d/10-a:3: a Jinja tag is not at column 0",
+        f"{readme} contains a concrete /mnt/c/Users/<name>/ path: Leaked: /mnt/c/Users/jdoe/y",
+        f"{src}/fragments/10-a:3: a Jinja tag is not at column 0",
     ]
 
 
@@ -161,10 +167,12 @@ def test_the_meta_data_example_is_the_yaml_block_after_the_marker(tmp_path):
     readme = tmp_path / "README.md"
     readme.write_text(
         "```yaml\nother: block\n```\n\n<!-- meta-data example -->\n\n```yaml\n# A comment.\ninstance-id: wsl\n"
-        "username:\n```\n\n```yaml\nlater: block\n```\n"
+        "username:\ngit_name: \ngit_email:\n```\n\n```yaml\nlater: block\n```\n"
     )
 
-    assert meta_data_example(str(readme)) == {"instance-id": "wsl", "username": None}
+    assert meta_data_example(str(readme)) == {
+        "instance-id": "wsl", "username": None, "git_name": None, "git_email": None,
+    }  # fmt: skip
 
 
 @pytest.mark.parametrize(
@@ -174,6 +182,12 @@ def test_the_meta_data_example_is_the_yaml_block_after_the_marker(tmp_path):
         ("<!-- meta-data example -->\nText first.\n\n```yaml\ninstance-id: wsl\n```\n", "has no yaml code block"),
         ("<!-- meta-data example -->\n```yaml\n- a list\n```\n", "is not a YAML mapping"),
         ("<!-- meta-data example -->\n```yaml\na: [b\n```\n", "is not valid YAML"),
+        ("<!-- meta-data example -->\n```yaml\nusername:\ngit_email:\n```\n", "has no empty git_name: line"),
+        (
+            "<!-- meta-data example -->\n```yaml\nusername:\ngit_name:\ngit_email: j@example.com\n```\n",
+            "has no empty git_email: line",
+        ),
+        ('<!-- meta-data example -->\n```yaml\nusername: ""\ngit_name:\ngit_email:\n```\n', "has no empty username:"),
     ],
 )
 def test_a_missing_or_broken_meta_data_example_is_an_error(tmp_path, text, error):

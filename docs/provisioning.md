@@ -1,6 +1,6 @@
 # Provisioning
 
-How the cloud-init parts in [`src/Ubuntu-26.04.user-data.d/`](../src/Ubuntu-26.04.user-data.d/) build an Ubuntu 26.04 WSL instance from scratch on its first boot. It's for engineers changing the user-data. The meta-data keys have their own doc, [WSL meta-data](meta-data.md), and how the parts are joined and checked is in [Build and validation](build.md).
+How the cloud-init fragments in [`src/fragments/`](../src/fragments/) build a WSL instance from scratch on its first boot, as the Ubuntu 26.04 distro's [manifest](../src/distros/Ubuntu-26.04/manifest.json) lists them. Which distro gets which fragments is in [Distros and manifests](distros.md). It's for engineers changing the user-data. The meta-data keys have their own doc, [WSL meta-data](meta-data.md), and how the parts are joined and checked is in [Build and validation](build.md).
 
 ## Contents
 
@@ -20,7 +20,7 @@ The user puts two files in their Windows profile, as the [README](../README.md#u
 
 | File | From | Copied to | Role |
 | --- | --- | --- | --- |
-| `Ubuntu-26.04.user-data` | Each release, built from the parts in `src/Ubuntu-26.04.user-data.d/` | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | A MIME multipart file of cloud-config parts. Generic, and the same for every user |
+| `Ubuntu-26.04.user-data` | Each release, built from the fragments the distro's manifest lists | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` | A MIME multipart file of cloud-config parts. Generic, and the same for every user |
 | `Ubuntu-26.04.meta-data` | The README's [meta-data example](../README.md#the-meta-data-example) | `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data` | The user's identity and choices, which they fill in. See [WSL meta-data](meta-data.md) |
 
 The user-data installs packages, writes system config, bridges Windows tools into Linux, creates the user and runs [`install.sh`](https://github.com/froazin/dotfiles/blob/main/src/install.sh) from the [dotfiles](https://github.com/froazin/dotfiles) for that user and for root. It holds nothing personal: every personal value comes from the meta-data.
@@ -32,8 +32,8 @@ This flowchart shows how the files reach the instance:
 ```mermaid
 flowchart LR
     accTitle: How the WSL files reach the instance
-    accDescr: The build joins the parts in src into one MIME user-data, and a release publishes it. The user downloads it into their Windows profile, writes the meta-data beside it from the README's example, and can add the optional .wslconfig, which WSL reads. cloud-init's WSL datasource reads the user-data and meta-data, renders each Jinja part, merges the parts and runs the cloud-config, which runs install.sh as the user and as root.
-    parts["src/Ubuntu-26.04.user-data.d/"] -->|"invoke build, make-mime"| release["GitHub release"]
+    accDescr: The build joins the fragments a distro's manifest lists into one MIME user-data, and a release publishes it. The user downloads it into their Windows profile, writes the meta-data beside it from the README's example and can add the optional .wslconfig, which WSL reads. cloud-init's WSL datasource reads the user-data and meta-data, renders each Jinja part, merges the parts and runs the cloud-config, which runs install.sh as the user and as root.
+    parts["src/fragments/ and the distro's manifest"] -->|"invoke build, make-mime"| release["GitHub release"]
     release -->|"user-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
     example["README meta-data example"] -->|"copied to .cloud-init and filled in"| ds
     wslconfig["optional .wslconfig"] -->|"in the Windows profile"| vm["WSL 2 virtual machine"]
@@ -47,21 +47,21 @@ flowchart LR
 
 ### Finding the files
 
-cloud-init's WSL datasource loads one user-data file, picked by instance name first, and only `<Instance>.meta-data`, which must contain `instance-id`. Both files are named for `Ubuntu-26.04`, the default name `wsl --install Ubuntu-26.04` gives. A test instance installed with `--name ci-test` needs copies named `ci-test.user-data` and `ci-test.meta-data`. The datasource merges nothing except Ubuntu Pro's `agent.yaml`.
+cloud-init's WSL datasource loads one user-data file, picked by instance name first, and only `<Instance>.meta-data`, which must contain `instance-id`. Both files are named for the distro, such as `Ubuntu-26.04`, the default name `wsl --install Ubuntu-26.04` gives. A test instance installed with `--name ci-test` needs copies named `ci-test.user-data` and `ci-test.meta-data`. The datasource merges nothing except Ubuntu Pro's `agent.yaml`.
 
 cloud-init runs once, on first boot, and Ubuntu's out-of-box experience (OOBE), `/usr/lib/wsl/wsl-setup`, waits for it.
 
 ### Parts and rendering
 
-The user-data is one part per feature, such as `40-podman.user-data`, each a cloud-config. cloud-init renders each part that starts with `## template: jinja` on its own, reading the meta-data from `ds.meta_data`, then merges the parts in name order. Every part's `merge_how` appends its lists to the earlier parts', so `packages` and `write_files` hold every part's entries and `runcmd` runs in the order of the file names. [Build and validation](build.md#how-the-build-works) covers the parts' rules.
+The user-data is one part per fragment, and one fragment per feature, such as `40-podman.user-data`, each a cloud-config. cloud-init renders each part that starts with `## template: jinja` on its own, reading the meta-data from `ds.meta_data`, then merges the parts in name order. Every part's `merge_how` appends its lists to the earlier parts', so `packages` and `write_files` hold every part's entries and `runcmd` runs in the order of the file names. [Build and validation](build.md#how-the-build-works) covers the parts' rules.
 
-A part sets every variable it uses, such as `user`, and normalises and validates the keys it reads, as [WSL meta-data](meta-data.md) describes. `90-development` and `99-dotfiles` build paths with the `workspace` macro, which turns a clone URL into `workspaces/<host>/<owner>/<repo>`, so the dotfiles' clone lands in `~/workspaces/github.com/froazin/dotfiles`.
+A fragment sets every variable it uses, such as `user`, and normalises and validates the keys it reads, as [WSL meta-data](meta-data.md) describes. `90-development` and `99-dotfiles` build paths with the `workspace` macro, which turns a clone URL into `workspaces/<host>/<owner>/<repo>`, so the dotfiles' clone lands in `~/workspaces/github.com/froazin/dotfiles`.
 
 Jinja runs with `trim_blocks` on and `lstrip_blocks` off, so every `{% %}` and `{# #}` tag sits at column 0. An indented tag would leave its indentation behind and break the YAML.
 
 ### Stages
 
-cloud-init runs its modules in a fixed order, not in the order the keys appear in the parts. This flowchart shows the modules the user-data uses, in the order Ubuntu's `/etc/cloud/cloud.cfg` lists them (observed):
+cloud-init runs its modules in a fixed order, not in the order the keys appear in the fragments. This flowchart shows the modules the user-data uses, in the order Ubuntu's `/etc/cloud/cloud.cfg` lists them (observed):
 
 ```mermaid
 flowchart TD
@@ -99,12 +99,12 @@ With a username, `80-git` writes two deferred files into the user's home: `~/.gi
 
 ### runcmd
 
-cloud-init writes `runcmd` out as one `#!/bin/sh` script with no `set -e`, so each entry runs whatever the others return. The entries run in part order, and the order still matters. This flowchart shows it, with the part each entry comes from:
+cloud-init writes `runcmd` out as one `#!/bin/sh` script with no `set -e`, so each entry runs whatever the others return. The entries run in fragment order, and the order still matters. This flowchart shows it, with the fragment each entry comes from:
 
 ```mermaid
 flowchart TD
     accTitle: runcmd order
-    accDescr: runcmd runs the parts' entries in name order. It links the Windows tools and fd, enables the system units and the global podman socket, sets up libvirt, sets zsh for new users and root, then either makes the user's workspaces, installs their tools and extensions and runs install.sh for the user and root, or runs install.sh for root from a temporary clone.
+    accDescr: runcmd runs the fragments' entries in name order. It links the Windows tools and fd, enables the system units and the global podman socket, sets up libvirt, sets zsh for new users and root, then either makes the user's workspaces, installs their tools and extensions and runs install.sh for the user and root, or runs install.sh for root from a temporary clone.
     links["10, 20: ln -sfn Windows tools and fd"] -->|then| units["30, 40: daemon-reload, enable --now disable-swap, make-root-rshared"]
     units -->|then| global["40: systemctl --global enable podman.socket, enable --now podman.socket"]
     global -->|then| virsh["50: virsh net-autostart default, usermod -aG libvirt"]
@@ -139,7 +139,7 @@ flowchart TD
 
 ## Security and privacy
 
-- The repository is public. The parts hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only account name in it is the dotfiles' repository URL.
+- The repository is public. The fragments hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only account name in it is the dotfiles' repository URL.
 - Only validated meta-data values reach shell commands. `username` is the exception: it's trusted as written (see [WSL meta-data](meta-data.md#limits)).
 - The GitHub CLI apt key is embedded in `95-github-cli`, with its fingerprint in a comment, rather than fetched at boot.
 - `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user. Their integrity rests on those hosts and TLS.
@@ -148,7 +148,7 @@ flowchart TD
 
 ## Decisions
 
-- **One part per feature.** cloud-init's own MIME parts and merging join them, so each feature reads on its own. See [Build and validation](build.md#decisions).
+- **One fragment per feature.** cloud-init's own MIME parts and merging join them, so each feature reads on its own, and each distro's manifest picks the features it gets. See [Build and validation](build.md#decisions).
 - **Native cloud-init modules over custom scripts.** Files, users, apt sources and packages use their modules. `runcmd` holds only what has no module.
 - **Installers run as the user** with `runuser -l`, so the tools live in the user's home and update themselves. nvm is cloned and checked out at its newest tag, and `ant` is unpacked with `tar -m` so zsh notices the new binary and regenerates its completion.
 - **`systemctl --global` instead of `--user`.** `runcmd` has no user bus. The `ConditionUser=!root` drop-in keeps the global enable out of root's user manager, which `sudo su` starts.

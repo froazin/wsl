@@ -8,7 +8,7 @@ Judge the config in `src/` as what ships: it's built into each release's files, 
 
 Mark a finding Important only when the change would do one of these:
 
-- Make the user-data fail to render, fail `cloud-init schema` or fail on a first boot. For example: a package name Ubuntu 26.04 doesn't have, which fails the whole package install; a Jinja tag that isn't at column 0; a part that uses a Jinja variable it doesn't set itself, because cloud-init renders each part on its own; `{{`, `{%` or `{#` inside embedded shell; a `users` or non-deferred `write_files` entry that needs a package or a group a package creates; `power_state` or `package_reboot_if_required`; `systemctl --user` in `runcmd`; or a `[user]` or `[time]` section in `/etc/wsl.conf`. `.claude/rules/cloud-init.md` lists the facts behind these.
+- Make the user-data fail to render, fail `cloud-init schema` or fail on a first boot. For example: a package name that a distro whose manifest lists the fragment doesn't have, which fails the whole package install; a Jinja tag that isn't at column 0; a fragment that uses a Jinja variable it doesn't set itself, because cloud-init renders each part on its own; `{{`, `{%` or `{#` inside embedded shell; a `users` or non-deferred `write_files` entry that needs a package or a group a package creates; `power_state` or `package_reboot_if_required`; `systemctl --user` in `runcmd`; or a `[user]` or `[time]` section in `/etc/wsl.conf`. `.claude/rules/cloud-init.md` lists the facts behind these.
 - Let a meta-data value reach a shell command without the validation `docs/meta-data.md` describes, write a value into `~/.gitconfig` without the `gitval` macro, or report a rejected value other than with `printf %s` and an ASCII-escaped `tojson`.
 - Add a meta-data key or a conditional block without a case in `scripts/build/cases.py`, including the case where the key is unset.
 - Put identifying data into the repository, such as a real name, email, username, signing key, hostname or `/mnt/c/Users/<name>/` path. The repository is public, and identifying values belong in the user's meta-data.
@@ -45,7 +45,8 @@ These are the rules that no tool, test or check enforces.
 
 - A new `runcmd` entry that installs something for the user runs with `runuser -l <user>`, so `HOME` is the user's, and uses the tool's official installer, so the tool can update itself.
 - Each install in `runcmd` is its own entry, so one failure doesn't stop the rest.
-- A new or renumbered part keeps `runcmd` entries that depend on each other in order, since the parts merge in name order. `docs/provisioning.md` says which do.
+- A new or renumbered fragment keeps `runcmd` entries that depend on each other in order, since the fragments merge in name order. `docs/provisioning.md` says which do.
+- A change to a shared fragment in `src/fragments/` is right for every distro whose manifest lists it, and a fragment in a distro's own folder holds only what's specific to that distro, as `docs/distros.md` says. A copy of a shared fragment in a distro's folder is a Nit at most, unless it drops something the shared one does.
 - A new `write_files` entry in the user's home is deferred, because `write_files` runs before `users` creates the user.
 - A new user-facing behaviour is in the README's "What it sets up" and in `docs/provisioning.md`.
 - Something new the user-data sets up has a check in `.github/scripts/check-instance.sh`. A missing check is a Nit.

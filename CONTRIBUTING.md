@@ -39,7 +39,7 @@ shellcheck .github/scripts/*.sh
 shfmt -d .
 ```
 
-- `uv run invoke build` builds the parts in `src/` into `dist/`. Edit `src/`, never `dist/`.
+- `uv run invoke build` builds each distro's fragments in `src/` into `dist/<distro>.user-data`. Edit `src/`, never `dist/`.
 - `uv run invoke validate` builds `dist/`, then merges the user-data for each mock meta-data case as cloud-init does at boot and checks the result. It exits 1 when a check fails. Add a case for every new meta-data key or conditional, including the key being unset. [docs/build.md](docs/build.md#validation) says what it checks, and [docs/provisioning.md](docs/provisioning.md#validation) what it doesn't prove.
 - shfmt reads its options from `.editorconfig`, so run it without formatting flags: any flag such as `-i` makes it ignore `.editorconfig`.
 

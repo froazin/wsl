@@ -20,9 +20,10 @@ def shell(command: str) -> None:
 
 
 def make_src(src: str, part: str = "#cloud-config\npackages: [git]\n") -> None:
-    write(f"{src}/Instance.user-data.d/10-a.user-data", part)
-    write(f"{src}/Instance.user-data.d/20-b.user-data", "## template: jinja\n#cloud-config\nhostname: {{ x }}\n")
-    write(f"{src}/Instance.meta-data", "instance-id: x\n")
+    write(f"{src}/fragments/10-a.user-data", part)
+    write(f"{src}/distros/Instance/20-b.user-data", "## template: jinja\n#cloud-config\nhostname: {{ x }}\n")
+    write(f"{src}/distros/Instance/manifest.json", '{"fragments": ["10-a", "20-b"]}')
+    write(f"{src}/distros/Other/manifest.json", '{"fragments": ["10-a"]}')
 
 
 class FakeSemanticRelease:
@@ -84,7 +85,7 @@ def test_a_changed_part_releases(tmp_path, dist):
 def test_an_added_or_removed_file_releases(tmp_path, dist, change):
     build(shell, f"{tmp_path}/src", f"{tmp_path}/previous")
     if change == "add":
-        os.remove(f"{tmp_path}/previous/Instance.meta-data")
+        os.remove(f"{tmp_path}/previous/Other.user-data")
     else:
         write(f"{tmp_path}/previous/Instance.extra", "\n")
 

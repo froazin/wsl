@@ -29,6 +29,7 @@ jobs:
     name: Build and version
     runs-on: &runs-on ubuntu-26.04
     outputs:
+      distros: ${{ steps.distros.outputs.distros }}
       version: ${{ steps.version.outputs.version }}
     steps:
       # semantic-release reads every commit and tag since the last release, so it needs the whole history.
@@ -56,6 +57,14 @@ jobs:
 
       - name: Build and validate the config
         run: uv run invoke validate
+
+      # The end-to-end tests install each distro the build made a user-data for, as a JSON list for their matrix.
+      - name: List the distros
+        id: distros
+        run: |
+          distros=$(find dist -maxdepth 1 -name '*.user-data' -printf '%f\n' | sed 's/\.user-data$//' | sort | jq -Rnc '[inputs]')
+          echo "distros=$distros" >> "$GITHUB_OUTPUT"
+          echo "Built $distros"
 
       # Before the first release there's nothing to download, and the folder stays missing. Any other failure fails the
       # job, so a release is never made because the latest one couldn't be read.
@@ -91,11 +100,11 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  # Only a release that's due, from a build that passed, reaches the Windows runners. Each case installs the instance the
-  # README describes on its own runner, because WSL instances on one machine share a cgroup tree. It runs under WSL's
-  # default settings, because the .wslconfig is an optional example.
+  # Only a release that's due, from a build that passed, reaches the Windows runners. Each distro and case installs the
+  # instance the README describes on its own runner, because WSL instances on one machine share a cgroup tree. It runs
+  # under WSL's default settings, because the .wslconfig is an optional example.
   e2e:
-    name: End-to-end ${{ matrix.case }}
+    name: End-to-end ${{ matrix.distro }} ${{ matrix.case }}
     needs: build
     if: needs.build.outputs.version != ''
     runs-on: windows-2025
@@ -103,7 +112,12 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # include adds each case's values to every distro's job for that case.
       matrix:
+        distro: ${{ fromJSON(needs.build.outputs.distros) }}
+        case:
+          - with a user
+          - without a user
         include:
           - case: with a user
             user: jdoe
@@ -117,7 +131,7 @@ jobs:
       run:
         shell: pwsh
     env:
-      INSTANCE: Ubuntu-26.04
+      INSTANCE: ${{ matrix.distro }}
       WSL_UTF8: "1"
     steps:
       # For the test scripts. The config comes from the build job, so it's the one that would be released.
@@ -138,7 +152,7 @@ jobs:
           E2E_GIT_NAME: ${{ matrix.git-name }}
           E2E_GIT_EMAIL: ${{ matrix.git-email }}
         run: >-
-          ./.github/scripts/seed-cloud-init.ps1 -Instance $env:INSTANCE -UserData dist/Ubuntu-26.04.user-data
+          ./.github/scripts/seed-cloud-init.ps1 -Instance $env:INSTANCE -UserData "dist/$env:INSTANCE.user-data"
           -Readme README.md -Username $env:E2E_USER -GitName $env:E2E_GIT_NAME -GitEmail $env:E2E_GIT_EMAIL
 
       - name: Install the distribution

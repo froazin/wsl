@@ -31,8 +31,8 @@ def _exit_on_build_error() -> Generator[None]:
 def build(c: Context) -> None:
     """Builds the config in src/ into dist/, after emptying dist/.
 
-    Each folder named <name>.d in src/ becomes dist/<name>, a MIME multipart file of its parts made with
-    `cloud-init devel make-mime`. Every other file in src/ is copied. See docs/build.md.
+    Each distro in src/distros/ becomes dist/<distro>.user-data, a MIME multipart file of the fragments its
+    manifest.json lists, made with `cloud-init devel make-mime`. See docs/build.md and docs/distros.md.
 
     Examples:
       invoke build
@@ -44,12 +44,12 @@ def build(c: Context) -> None:
 
 @task(help={"skip_build": SKIP_BUILD_HELP})
 def validate(c: Context, skip_build: bool = False) -> None:
-    """Builds the config, then checks dist/Ubuntu-26.04.user-data against every meta-data case.
+    """Builds the config, then checks each distro's user-data in dist/ against every meta-data case.
 
-    For each case in scripts/build/cases.py, merges the user-data's parts with cloud-init's own part handlers, as an
-    instance does at boot, then checks the result with `cloud-init schema`, git, ssh-keygen and ShellCheck. Also checks
-    each part's lists are appended in name order, Jinja tags sit at column 0 and no Windows profile path names a user.
-    See docs/build.md.
+    For each distro and each case in scripts/build/cases.py, merges the user-data's parts with cloud-init's own part
+    handlers, as an instance does at boot, then checks the result with `cloud-init schema`, git, ssh-keygen and
+    ShellCheck. Also checks each fragment's lists are appended in name order, Jinja tags sit at column 0, every shared
+    fragment is in a manifest and no Windows profile path names a user. See docs/build.md.
 
     Examples:
       invoke validate

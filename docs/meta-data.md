@@ -15,13 +15,13 @@ How the WSL user-data reads each key of the meta-data, which users write from th
 
 ## Overview
 
-The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`, by copying the README's example and filling it in. Releases don't ship it. The example leaves the identifying values empty, and its comments describe each key. cloud-init's WSL datasource reads the file.
+The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\<distro>.meta-data`, such as `Ubuntu-26.04.meta-data`, by copying the README's example and filling it in. Every distro reads the same keys, so one example serves them all. Releases don't ship it. The example leaves the identifying values empty, and its comments describe each key. cloud-init's WSL datasource reads the file.
 
-The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. `invoke validate` renders the user-data with it in the `readme-example` case, and the [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, so both find it by that comment. Keep the comment and the block together, and add every new key to the example.
+The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. `invoke validate` renders the user-data with it in the `readme-example` case, and the [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, so both find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in and `invoke validate` checks, and add every new key to the example.
 
-Each key is read in the parts of [`src/Ubuntu-26.04.user-data.d/`](../src/Ubuntu-26.04.user-data.d/) that use it, at the top of the part, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each part on its own, so a part that needs a key reads it itself, even when another part reads it too.
+Each key is read in the fragments in [`src/fragments/`](../src/fragments/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A distro's own fragment reads a key the same way, and a new key goes into the README's example for every distro.
 
-Each part turns the keys it reads into the variables its cloud-config uses. This flowchart shows where each key ends up:
+Each fragment turns the keys it reads into the variables its cloud-config uses. This flowchart shows where each key ends up:
 
 ```mermaid
 flowchart LR
@@ -43,8 +43,8 @@ Every key apart from `instance-id` needs `username`: without one, the user-data 
 
 | Key | Expected type | Value in the example | Read in | Ends up in |
 | --- | --- | --- | --- | --- |
-| `instance-id` | String | `ubuntu-wsl` | None | Read by the datasource, which needs it. No part uses it |
-| `username` | String | Empty | Every part from `50-virtualisation` on | `users:`, every `runuser` command and the home paths |
+| `instance-id` | String | `wsl` | None | Read by the datasource, which needs it. No fragment uses it |
+| `username` | String | Empty | Every fragment from `50-virtualisation` on | `users:`, every `runuser` command and the home paths |
 | `git_name`, `git_email` | String | Empty | `80-git` | `[user]` in `~/.gitconfig` |
 | `git_signingkey` | String | Empty | `80-git` | `user.signingkey`, `gpg.format`, `commit.gpgsign`, `gpg.ssh.allowedSignersFile` and `allowed_signers` |
 | `git_ssh_program` | String | Empty | `80-git` | `gpg.ssh.program` |
@@ -113,7 +113,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 - The value is the entry's string form, with non-ASCII characters escaped by Python's `backslashreplace` and then quoted by Jinja's `tojson`. A non-string entry, such as `42`, prints as `42`.
 - It escapes to ASCII first because `tojson` writes a character outside the Basic Multilingual Plane as a surrogate pair, which YAML decodes into lone surrogates. cloud-init then can't write the `runcmd` script as UTF-8, and every entry fails.
 - It uses `printf` with `%s` rather than `echo`, because dash's `echo` interprets backslashes.
-- These lines sit inside the part's `{% if user %}` block, so nothing is reported without a username.
+- These lines sit inside the fragment's `{% if user %}` block, so nothing is reported without a username.
 
 ## Security and privacy
 
@@ -124,7 +124,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 
 ## Decisions
 
-- **Validate in the parts, not at runtime.** Checking each value before it's rendered keeps hostile text out of shell commands. The parts' comments say only validated IDs reach the shell.
+- **Validate in the fragments, not at runtime.** Checking each value before it's rendered keeps hostile text out of shell commands. The fragments' comments say only validated IDs reach the shell.
 - **Accept a string for a list.** A comma or space-separated string is split into entries, so a list written on one line still works (inferred: no comment gives the reason).
 - **Report rather than fail.** A bad entry is skipped and named in the log, so the rest of the instance still builds.
 - **Derive the workspace from a noreply email only.** It's the one email form that holds the GitHub username (inferred).
@@ -138,6 +138,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 - Without `username`, rejected values aren't reported (observed).
 - `gh extension install` runs before the user logs in to gh, so a private extension fails at first boot (inferred from the comment that a public one needs no login).
 - A VS Code extension install is skipped without a message when `/usr/local/bin/code` isn't executable, such as when VS Code isn't installed at the linked Windows path.
+- The README's example is read on `main`, not from a release. Between a change to the keys landing on `main` and its release, the example can name a key the latest release's user-data doesn't read, and an unread key is ignored without a message. The README at the release's tag has the example that matches it.
 
 ## Sources
 

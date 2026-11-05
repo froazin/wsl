@@ -1,6 +1,14 @@
 # WSL
 
-A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for development from scratch, on its first boot.
+A reusable cloud-init config that builds a WSL instance for development from scratch, on its first boot, for each of the [supported distros](#supported-distros).
+
+## Contents
+
+1. [What it sets up](#what-it-sets-up)
+1. [Using it](#using-it)
+1. [How it works](#how-it-works)
+1. [Contributing](#contributing)
+1. [Licence](#licence)
 
 ## What it sets up
 
@@ -16,27 +24,28 @@ A reusable cloud-init config that builds an Ubuntu 26.04 WSL instance for develo
 
 ## Using it
 
-You need Windows with WSL 2. cloud-init reads two files from `%USERPROFILE%\.cloud-init\`, named after the instance:
+You need Windows with WSL 2. cloud-init reads two files from `%USERPROFILE%\.cloud-init\`, named after the instance, such as `Ubuntu-26.04`:
 
 | File | Where it comes from | What it is |
 | --- | --- | --- |
-| `Ubuntu-26.04.user-data` | Each [release](https://github.com/froazin/wsl/releases) | The cloud-init config. It holds nothing personal |
-| `Ubuntu-26.04.meta-data` | You write it from [the meta-data example](#the-meta-data-example) | Your username, git identity and extension lists. Keep your copy to yourself |
+| `<distro>.user-data` | Each [release](https://github.com/froazin/wsl/releases) | The cloud-init config for that distro. It holds nothing personal |
+| `<distro>.meta-data` | You write it from [the meta-data example](#the-meta-data-example) | Your username, git identity and extension lists. Keep your copy to yourself |
 
-1. Download the latest release's user-data. From PowerShell:
+1. Pick a distro from [Supported distros](#supported-distros), and download its user-data from the latest release. From PowerShell:
 
    ```powershell
+   $distro = 'Ubuntu-26.04'
    $dir = "$env:USERPROFILE\.cloud-init"
    New-Item -ItemType Directory -Force $dir | Out-Null
-   Invoke-WebRequest 'https://github.com/froazin/wsl/releases/latest/download/Ubuntu-26.04.user-data' -OutFile "$dir\Ubuntu-26.04.user-data"
+   Invoke-WebRequest "https://github.com/froazin/wsl/releases/latest/download/$distro.user-data" -OutFile "$dir\$distro.user-data"
    ```
 
-1. Copy [the meta-data example](#the-meta-data-example) into `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`, and fill it in.
+1. Copy [the meta-data example](#the-meta-data-example) into `%USERPROFILE%\.cloud-init\<distro>.meta-data`, such as `Ubuntu-26.04.meta-data`, and fill it in.
 1. Optionally, set up `.wslconfig` as [The .wslconfig example](#the-wslconfig-example) describes.
 1. Install the distribution under its default name, which is the name cloud-init matches the files by:
 
    ```powershell
-   wsl --install Ubuntu-26.04
+   wsl --install $distro
    ```
 
    cloud-init runs on the first boot only, and the first launch waits for it.
@@ -44,8 +53,18 @@ You need Windows with WSL 2. cloud-init reads two files from `%USERPROFILE%\.clo
 1. When it finishes, restart the instance so the `wsl.conf` settings and the new group memberships take effect:
 
    ```powershell
-   wsl --terminate Ubuntu-26.04
+   wsl --terminate $distro
    ```
+
+### Supported distros
+
+Each release has a user-data for each of these, named after the distro:
+
+| Distro | Name for `wsl --install` and the files |
+| --- | --- |
+| Ubuntu 26.04 LTS | `Ubuntu-26.04` |
+
+Every distro reads the same meta-data, so the steps and the example are the same for each.
 
 ### The meta-data example
 
@@ -55,7 +74,7 @@ The meta-data holds everything personal, so the user-data stays the same for eve
 
 ```yaml
 # Needed by cloud-init. Any value will do.
-instance-id: ubuntu-wsl
+instance-id: wsl
 
 # Linux username, created with uid 1000, zsh and passwordless sudo. Leave it
 # empty to have WSL ask for a user instead, as "Without a username" describes.
@@ -92,7 +111,7 @@ gh_extensions:
 
 ### Reading what it runs
 
-The user-data is a MIME multipart file of cloud-config parts, and each part is base64-encoded, so it isn't readable as text. Read the parts in [`src/Ubuntu-26.04.user-data.d/`](src/Ubuntu-26.04.user-data.d/) at the release's tag instead: `https://github.com/froazin/wsl/tree/<tag>/src/Ubuntu-26.04.user-data.d`, with the tag, such as `v1.2.3`, from the release's page.
+The user-data is a MIME multipart file of cloud-config parts, and each part is base64-encoded, so it isn't readable as text. Read it in [`src/`](src/) at the release's tag instead, with the tag, such as `v1.2.3`, from the release's page. The distro's manifest, such as `https://github.com/froazin/wsl/blob/<tag>/src/distros/Ubuntu-26.04/manifest.json`, lists its fragments, one per part, in the order they run. Each is in `src/fragments/`, or in the distro's own folder beside its manifest.
 
 ### The .wslconfig example
 
@@ -156,7 +175,7 @@ PATH="$HOME/.local/bin:$HOME/.pulumi/bin:$PATH" sh ~/workspaces/github.com/froaz
 
 ### Testing a change
 
-Build the user-data with `uv run invoke build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy `dist/Ubuntu-26.04.user-data` as `ci-test.user-data`, and write `ci-test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
+Build the user-data with `uv run invoke build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy the distro's user-data, such as `dist/Ubuntu-26.04.user-data`, as `ci-test.user-data`, and write `ci-test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
 
 ```powershell
 wsl --install Ubuntu-26.04 --name ci-test
@@ -167,17 +186,18 @@ WSL instances share one cgroup tree, so stop your main instance first if you're 
 
 ### Making it your own
 
-Fork the repository and change the parts in [`src/Ubuntu-26.04.user-data.d/`](src/Ubuntu-26.04.user-data.d/), then build your own files with `uv run invoke build`, which writes them to `dist/`. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`99-dotfiles.user-data`](src/Ubuntu-26.04.user-data.d/99-dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
+Fork the repository and change the fragments in [`src/fragments/`](src/fragments/), then build your own files with `uv run invoke build`, which writes them to `dist/`. To drop a feature, delete its fragment and take it out of every distro's [manifest](src/distros/Ubuntu-26.04/manifest.json): `invoke validate` fails on a shared fragment that no manifest lists. [Distros and manifests](docs/distros.md) says how to add a distro. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`99-dotfiles.user-data`](src/fragments/99-dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
 
 ## How it works
 
-The config is plain cloud-init, written as one part per feature. `invoke build` joins the parts into one user-data file, because WSL reads only one, and the release workflow publishes it. cloud-init's WSL datasource reads the files on the instance's first boot:
+The config is plain cloud-init, written as one fragment per feature and shared by every distro. Each distro's manifest lists the fragments it gets, and `invoke build` joins them into one user-data file per distro, because WSL reads only one, and the release workflow publishes them. cloud-init's WSL datasource reads the files on the instance's first boot:
 
 ```mermaid
 flowchart LR
     accTitle: How the files reach the instance
-    accDescr: invoke build joins the parts in src into one MIME user-data, and the release workflow publishes it. You download it into your Windows profile, and write the meta-data beside it from the README's example. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in name order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
-    parts["src/Ubuntu-26.04.user-data.d/"] -->|"invoke build"| release["GitHub release"]
+    accDescr: invoke build joins the fragments each distro's manifest lists into one MIME user-data for the distro, and the release workflow publishes it. You download it into your Windows profile, and write the meta-data beside it from the README's example. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in name order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
+    parts["src/fragments/"] -->|"listed in a manifest"| manifest["src/distros/Ubuntu-26.04/manifest.json"]
+    manifest -->|"invoke build"| release["GitHub release"]
     release -->|"user-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
     example["The README's meta-data example"] -->|"copied to .cloud-init and filled in"| ds
     ds -->|"renders each part, merges them in name order"| modules["cloud-init modules"]
@@ -188,9 +208,10 @@ flowchart LR
 
 The design docs explain each part, for anyone changing it:
 
-- [Provisioning](docs/provisioning.md): how the user-data's parts, stages and `runcmd` work.
+- [Provisioning](docs/provisioning.md): how the user-data's fragments, stages and `runcmd` work.
+- [Distros and manifests](docs/distros.md): how each distro's manifest picks its fragments, and how to add a distro.
 - [WSL meta-data](docs/meta-data.md): how each meta-data key is validated and where it ends up.
-- [Build and validation](docs/build.md): how `tasks.py` and `scripts/` build the parts into `dist/` and check the result.
+- [Build and validation](docs/build.md): how `tasks.py` and `scripts/` build the fragments into `dist/` and check the result.
 - [CI](docs/ci.md): the checks and the code review that run on each pull request.
 - [Releases](docs/releases.md): how `main` is released, with the end-to-end tests on Windows runners.
 

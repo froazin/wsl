@@ -1,5 +1,5 @@
-"""Checks the built user-data: merges it for each case in scripts/build/cases.py as cloud-init does at boot, then checks
-what each case's cloud-config holds, and checks src/ and dist/ for mistakes no single case shows.
+"""Checks the built user-data: merges each distro's for each case in scripts/build/cases.py as cloud-init does at boot,
+then checks what each case's cloud-config holds, and checks src/ and dist/ for mistakes no single case shows.
 """
 
 import email
@@ -22,20 +22,23 @@ from cloudinit.settings import PER_INSTANCE
 from cloudinit.user_data import UserDataProcessor
 from cloudinit.util import shellify
 
-from scripts.build.build import part_names, part_type
+from scripts.build.build import part_type
 from scripts.build.cases import Case, cases, instance_data
 from scripts.build.config import (
     DIST_FOLDER,
     JINJA_HEADER,
     JINJA_PART_TYPE,
+    MANIFEST_FILE,
+    MANIFEST_SCHEMA,
     META_DATA_EXAMPLE_MARKER,
-    PARTS_SUFFIX,
+    META_DATA_FILLED_KEYS,
     README_FILE,
     SRC_FOLDER,
+    USER_DATA_SUFFIX,
 )
 from scripts.build.errors import BuildError
+from scripts.build.manifest import Distro, load_distros, shared_fragments
 
-USER_DATA = "Ubuntu-26.04.user-data"
 REQUIRED_COMMANDS = ("cloud-init", "git", "shellcheck", "ssh-keygen")
 MERGED_LISTS = ("packages", "write_files", "runcmd")
 LEAKED_PATH = re.compile(r"/mnt/c/Users/[^<*/ ]+/")
@@ -44,8 +47,11 @@ LEAKED_PATH = re.compile(r"/mnt/c/Users/[^<*/ ]+/")
 type Doc = dict[str, Any]
 
 
-def validate(src: str = SRC_FOLDER, dist: str = DIST_FOLDER, readme: str = README_FILE) -> None:
-    """Checks dist/ against every case, and src/ and dist/ as a whole. Prints `ok  <case>` or `FAIL: ...` lines.
+def validate(
+    src: str = SRC_FOLDER, dist: str = DIST_FOLDER, readme: str = README_FILE, schema: str = MANIFEST_SCHEMA
+) -> None:
+    """Checks each distro's user-data in dist/ against every case, and src/ and dist/ as a whole. Prints
+    `ok   <distro>: <case>` or `FAIL: ...` lines.
 
     One case renders with the meta-data example in readme. Raises a BuildError when a check fails, or when a command or
     file the checks need is missing.
@@ -54,32 +60,33 @@ def validate(src: str = SRC_FOLDER, dist: str = DIST_FOLDER, readme: str = READM
     missing = [command for command in REQUIRED_COMMANDS if shutil.which(command) is None]
     if missing:
         raise BuildError(f"Missing required commands: {', '.join(missing)}.")
-    user_data_path = os.path.join(dist, USER_DATA)
-    if not os.path.isfile(user_data_path):
-        raise BuildError(f"{user_data_path} not found. Run `invoke build` first.")
-    with open(user_data_path, "rb") as f:
-        user_data = f.read()
+    distros = load_distros(src, schema)
+    user_data = {distro.name: read_user_data(dist, distro) for distro in distros}
     example = meta_data_example(readme)
-    parts_dir = os.path.join(src, USER_DATA + PARTS_SUFFIX)
 
     failed = False
     with TemporaryDirectory() as work:
-        signer, ecdsa = keygen(work, "signer", "-t", "ed25519"), keygen(work, "ecdsa", "-t", "ecdsa", "-b", "256")
-        start = None
-        for case in cases(work, signer, ecdsa, example):
-            doc, problems = check_case(case, user_data, parts_dir, os.path.join(work, case.name))
-            for problem in problems:
-                print(f"FAIL: {case.name}: {problem}")
-            print(f"{'ok  ' if not problems else 'FAIL'} {case.name}")
-            failed = failed or bool(problems)
-            if case.name == "full":
-                start = write_files(doc).get("/usr/local/bin/start")
-        # The start script is the same in every case.
-        if start is None or not shellcheck(start["content"], os.path.join(work, "start")):
-            print("FAIL: start: shellcheck")
-            failed = True
+        keys = os.path.join(work, "keys")
+        os.makedirs(keys)
+        signer, ecdsa = keygen(keys, "signer", "-t", "ed25519"), keygen(keys, "ecdsa", "-t", "ecdsa", "-b", "256")
+        for distro in distros:
+            prefix = os.path.join(work, "distros", distro.name)
+            os.makedirs(prefix)
+            start = None
+            for case in cases(keys, signer, ecdsa, example):
+                doc, problems = check_case(case, user_data[distro.name], distro, os.path.join(prefix, case.name))
+                for problem in problems:
+                    print(f"FAIL: {distro.name}: {case.name}: {problem}")
+                print(f"{'ok  ' if not problems else 'FAIL'} {distro.name}: {case.name}")
+                failed = failed or bool(problems)
+                if case.name == "full":
+                    start = write_files(doc).get("/usr/local/bin/start")
+            # The start script is the same in every case.
+            if start is None or not shellcheck(start["content"], os.path.join(prefix, "start")):
+                print(f"FAIL: {distro.name}: start: shellcheck")
+                failed = True
 
-    for problem in source_problems(src, dist):
+    for problem in source_problems(src, dist, distros, readme):
         print(f"FAIL: {problem}")
         failed = True
     if failed:
@@ -88,10 +95,21 @@ def validate(src: str = SRC_FOLDER, dist: str = DIST_FOLDER, readme: str = READM
     print("All cases passed.")
 
 
+def read_user_data(dist: str, distro: Distro) -> bytes:
+    """Returns the distro's built user-data, raising a BuildError when it isn't in dist."""
+
+    path = os.path.join(dist, distro.name + USER_DATA_SUFFIX)
+    if not os.path.isfile(path):
+        raise BuildError(f"{path} not found. Run `invoke build` first.")
+    with open(path, "rb") as f:
+        return f.read()
+
+
 def meta_data_example(readme: str) -> dict[str, Any]:
     """Returns the meta-data example in readme: the yaml code block straight after META_DATA_EXAMPLE_MARKER.
 
-    Raises a BuildError when readme has no such block, or the block isn't a YAML mapping.
+    Raises a BuildError when readme has no such block, the block isn't a YAML mapping, or it doesn't leave each of
+    META_DATA_FILLED_KEYS empty on a line of its own, as seed-cloud-init.ps1 needs to fill it in.
     """
 
     with open(readme) as f:
@@ -105,6 +123,12 @@ def meta_data_example(readme: str) -> dict[str, Any]:
         raise BuildError(f"The meta-data example in {readme} is not valid YAML: {error}") from error
     if not isinstance(example, dict):
         raise BuildError(f"The meta-data example in {readme} is not a YAML mapping.")
+    for key in META_DATA_FILLED_KEYS:
+        # The same pattern seed-cloud-init.ps1 fills in.
+        if not re.search(rf"^{re.escape(key)}:[ \t]*$", found.group(1), re.MULTILINE):
+            raise BuildError(
+                f"The meta-data example in {readme} has no empty {key}: line, which the end-to-end tests fill in."
+            )
     return cast(dict[str, Any], example)
 
 
@@ -155,34 +179,33 @@ def merge(user_data: bytes, instance: Doc) -> str:
             return f.read()
 
 
-def render_parts(parts_dir: str, instance: Doc) -> tuple[dict[str, Doc], list[str]]:
-    """Renders each part in parts_dir on its own, and returns them by name in name order, with any problems.
+def render_fragments(distro: Distro, instance: Doc) -> tuple[dict[str, Doc], list[str]]:
+    """Renders each of the distro's fragments on its own, and returns them by name in name order, with any problems.
 
-    A Jinja part goes through the same renderer cloud-init's Jinja part handler uses. Any other part is plain YAML.
+    A Jinja fragment goes through the same renderer cloud-init's Jinja part handler uses. Any other is plain YAML.
     """
 
     parts, problems = {}, []
-    for name in part_names(parts_dir):
-        path = os.path.join(parts_dir, name)
+    for path, name in zip(distro.fragments, distro.fragment_names(), strict=True):
         with open(path) as f:
             text = f.read()
         if part_type(path) == JINJA_PART_TYPE:
             try:
                 text = render_jinja_payload(text, name, instance)
-            except Exception as error:  # Any template error is the part's problem, so it's reported, not raised.
-                problems.append(f"part {name} does not render: {error}")
+            except Exception as error:  # Any template error is the fragment's problem, so it's reported, not raised.
+                problems.append(f"fragment {name} does not render: {error}")
                 continue
             if text is None:
-                problems.append(f"part {name} does not render")
+                problems.append(f"fragment {name} does not render")
                 continue
         try:
             parts[name] = yaml.safe_load(text) or {}
         except yaml.YAMLError as error:
-            problems.append(f"part {name} is not valid YAML: {str(error).splitlines()[0]}")
+            problems.append(f"fragment {name} is not valid YAML: {str(error).splitlines()[0]}")
     return parts, problems
 
 
-def check_case(case: Case, user_data: bytes, parts_dir: str, prefix: str) -> tuple[Doc, list[str]]:
+def check_case(case: Case, user_data: bytes, distro: Distro, prefix: str) -> tuple[Doc, list[str]]:
     """Merges the user-data for a case, then returns the merged cloud-config and the problems found in it.
 
     Files the checks hand to other commands are written next to prefix.
@@ -205,7 +228,7 @@ def check_case(case: Case, user_data: bytes, parts_dir: str, prefix: str) -> tup
         problems.append("rendered output does not start with #cloud-config")
 
     doc = yaml.safe_load(text) or {}
-    parts, render_problems = render_parts(parts_dir, instance)
+    parts, render_problems = render_fragments(distro, instance)
     problems += render_problems
     problems += merge_problems(text, doc, parts)
     problems += expectation_problems(doc, case.expect)
@@ -488,13 +511,18 @@ def shellcheck(script: str, path: str) -> bool:
     return subprocess.run(["shellcheck", "-s", "sh", path]).returncode == 0
 
 
-def source_problems(src: str, dist: str) -> list[str]:
-    """Checks every file in src/ and dist/ for a leaked Windows profile path, and every Jinja part in src/ for a tag
-    away from column 0.
+def source_problems(src: str, dist: str, distros: list[Distro], readme: str) -> list[str]:
+    """Checks every file in src/ and dist/, and readme with its meta-data example, for a leaked Windows profile path,
+    every Jinja fragment in src/ for a tag away from column 0, and that every shared fragment is in a distro's manifest.
     """
 
-    problems = []
-    for label, text in texts(src) + texts(dist):
+    listed = {path for distro in distros for path in distro.fragments}
+    problems = [
+        f"{path} isn't listed in any distro's {MANIFEST_FILE}" for path in shared_fragments(src) if path not in listed
+    ]
+    with open(readme) as f:
+        readme_text = [(readme, f.read())]
+    for label, text in texts(src) + texts(dist) + readme_text:
         problems += [f"{label} contains a concrete /mnt/c/Users/<name>/ path: {line}" for line in leaked_paths(text)]
     for label, text in texts(src):
         if text.startswith(JINJA_HEADER + "\n"):

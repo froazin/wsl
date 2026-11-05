@@ -20,16 +20,16 @@ The workflow runs on every push to `main`, with the same `paths` filter as [CI](
 ```mermaid
 flowchart LR
     accTitle: The jobs that release the config
-    accDescr: A push to main that changes more than docs starts the workflow. The build job validates the config, downloads the latest release's files and works out the version. When a version is due, the e2e job installs an instance on Windows runners with the built files. When both pass, the release job creates the tag and the GitHub release with the files as assets.
+    accDescr: A push to main that changes more than docs starts the workflow. The build job validates the config, downloads the latest release's files and works out the version. When a version is due, the e2e job installs an instance of each distro on Windows runners with the built files, with and without a user. When both pass, the release job creates the tag and the GitHub release with the files as assets.
     push["Push to main"] -->|"not only docs"| build["build: validate, download the latest release, invoke version"]
     latest[("Latest release")] -->|"its files"| build
-    build -->|"version due, dist/ as an artifact"| e2e["e2e: windows-2025, two cases"]
+    build -->|"version due, dist/ as an artifact"| e2e["e2e: windows-2025, two cases per distro"]
     build -->|"no version"| stop["Nothing to release"]
     e2e -->|passed| release["release: gh release create"]
     release -->|"tag vX.Y.Z and assets"| latest
 ```
 
-- **`build`** checks out the whole history and its tags, sets up the tools as the CI `checks` job does and runs `uv run invoke validate`. It downloads the latest release's files with `gh release download`, when a release exists, then runs `uv run invoke version`. When that prints a version, it uploads `dist/` as the `dist` artifact.
+- **`build`** checks out the whole history and its tags, sets up the tools as the CI `checks` job does and runs `uv run invoke validate`. It lists the distros in `dist/` for the `e2e` matrix, then downloads the latest release's files with `gh release download`, when a release exists, then runs `uv run invoke version`. When that prints a version, it uploads `dist/` as the `dist` artifact.
 - **`e2e`** runs only when a version is due. See [End-to-end tests](#end-to-end-tests).
 - **`release`** needs both, so a failed build or end-to-end test skips it. It downloads the artifact and runs `gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --generate-notes`.
 
@@ -53,13 +53,14 @@ semantic-release prints a version only on `main`, and must run from the reposito
 ## Tags and assets
 
 - GitHub creates the tag `vX.Y.Z` on the commit the run built, through `gh release create --target`. The release notes are GitHub's generated notes.
-- The assets are the files in `dist/`: `Ubuntu-26.04.user-data`. The README downloads it from `https://github.com/froazin/wsl/releases/latest/download/<file>`.
+- The assets are the files in `dist/`: a `<distro>.user-data` for each distro in `src/distros/`, today only `Ubuntu-26.04.user-data`. The README downloads one from `https://github.com/froazin/wsl/releases/latest/download/<distro>.user-data`.
+- Every distro is released together, under one version, because the shared fragments change them together.
 - No meta-data is released. Users write their own from the README's [meta-data example](../README.md#the-meta-data-example).
-- The user-data's parts are base64 in the MIME file, so the README sends readers to `src/Ubuntu-26.04.user-data.d/` at the release's tag to read them.
+- The user-data's parts are base64 in the MIME file, so the README sends readers to the distro's manifest and the fragments in `src/` at the release's tag to read them.
 
 ## End-to-end tests
 
-The `e2e` job installs an instance the way the README tells users to, on a raw `windows-2025` runner, which comes with WSL, with the files the `build` job made. It runs under WSL's default settings, with no `.wslconfig`, because the README's `.wslconfig` is an optional example. It runs two cases, each on its own runner, because WSL instances on one machine share a cgroup tree:
+The `e2e` job installs an instance the way the README tells users to, on a raw `windows-2025` runner, which comes with WSL, with the files the `build` job made. It runs under WSL's default settings, with no `.wslconfig`, because the README's `.wslconfig` is an optional example. It runs two cases for each distro the build made a user-data for, each on its own runner, because WSL instances on one machine share a cgroup tree. The `build` job lists the distros from `dist/` as a JSON list, which the matrix reads with `fromJSON`, so a new distro is tested without a change to the workflow:
 
 | Case | Meta-data |
 | --- | --- |
@@ -68,8 +69,8 @@ The `e2e` job installs an instance the way the README tells users to, on a raw `
 
 Each step is a script in `.github/scripts/`:
 
-1. **`seed-cloud-init.ps1`** copies the user-data to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data`, and writes the README's meta-data example there with the case's values filled into its empty keys. It finds the example by the `<!-- meta-data example -->` comment before it, as `invoke validate` does.
-1. **`install-instance.ps1`** runs `wsl --install Ubuntu-26.04 --no-launch --web-download`.
+1. **`seed-cloud-init.ps1`** copies the distro's user-data to `%USERPROFILE%\.cloud-init\<distro>.user-data`, and writes the README's meta-data example there with the case's values filled into its empty keys. It finds the example by the `<!-- meta-data example -->` comment before it, as `invoke validate` does.
+1. **`install-instance.ps1`** runs `wsl --install <distro> --no-launch --web-download`.
 1. **`wait-for-cloud-init.ps1`** runs `cloud-init status --wait` as root, which boots the instance for the first time, then shows cloud-init's status and logs. It fails if cloud-init didn't use the WSL datasource, or reports any error or recoverable error. A recoverable error that every instance gets, listed in `$expected`, is only logged.
 1. **`restart-instance.ps1`** runs `wsl --terminate`, as the README says to, then fails unless `systemctl is-system-running --wait` says `running`.
 1. **`check-instance.ps1`** runs [`check-instance.sh`](../.github/scripts/check-instance.sh) as root inside the instance. It checks the system files, packages, links, units, shells and dotfiles, and for the `with a user` case the user, their groups, git config, tools and gh extension. WSL attaches swap by default, so its `swap is off` check tests `disable-swap.service`.
