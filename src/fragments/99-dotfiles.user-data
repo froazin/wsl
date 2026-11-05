@@ -1,0 +1,41 @@
+## template: jinja
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+{% set user = ds.meta_data.username or '' %}
+{% macro workspace(repo) %}workspaces/{{ repo.split('://', 1)[-1].removesuffix('.git') }}{% endmacro %}
+{% set dotfiles_repo = 'https://github.com/froazin/dotfiles.git' %}
+{% set dotfiles_rel = workspace(dotfiles_repo) %}
+{% set dotfiles_dir = '~/' ~ dotfiles_rel %}
+
+packages:
+  # dotfiles modules and their soft and optional dependencies
+  - zsh
+  - zsh-common
+  - zsh-autosuggestions
+  - zsh-syntax-highlighting
+  - fzf
+  - git
+  - direnv
+  - xdg-utils
+  - curl
+  - ca-certificates
+  - jq
+  - python3
+
+runcmd:
+{% if user %}
+  # ~/.zshenv does not exist yet, so PATH gets its directories here; otherwise
+  # the installer cannot see claude and skips the claude module.
+  - [runuser, -l, "{{ user }}", -c, "{ [ -d {{ dotfiles_dir }}/.git ] || git clone {{ dotfiles_repo }} {{ dotfiles_dir }}; } && PATH=\"$HOME/.local/bin:$HOME/.pulumi/bin:$PATH\" sh {{ dotfiles_dir }}/src/install.sh"]
+  # runcmd has no HOME; runuser -l sets HOME=/root, so the path cannot use ~.
+  - [runuser, -l, root, -c, "sh /home/{{ user }}/{{ dotfiles_rel }}/src/install.sh"]
+{% else %}
+  # No user yet. The installer copies its templates, so the clone can be deleted.
+  - [runuser, -l, root, -c, 'd="$(mktemp -d)" && git clone --quiet --depth 1 {{ dotfiles_repo }} "$d" && sh "$d/src/install.sh"; rc=$?; rm -rf "$d"; exit "$rc"']
+{% endif %}

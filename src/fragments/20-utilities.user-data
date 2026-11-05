@@ -1,0 +1,19 @@
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+packages:
+  - btop
+  - tree
+  - ripgrep
+  - fd-find
+  - nmap
+  - ncat
+
+runcmd:
+  # fd-find installs its command as fdfind; another package owns the name fd.
+  - [ln, -sfn, /usr/bin/fdfind, /usr/local/bin/fd]

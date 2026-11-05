@@ -1,6 +1,6 @@
 # WSL meta-data
 
-How the WSL user-data reads each key of [`Ubuntu-26.04.meta-data`](../src/Ubuntu-26.04.meta-data): how it normalises and validates the value, where the value ends up and how it reports a value it rejects. It's for engineers adding or changing a meta-data key. [Provisioning](provisioning.md) covers the rest of the user-data.
+How the WSL user-data reads each key of the meta-data, which users write from the README's [meta-data example](../README.md#the-meta-data-example): how it normalises and validates the value, where the value ends up and how it reports a value it rejects. It's for engineers adding or changing a meta-data key. [Provisioning](provisioning.md) covers the rest of the user-data.
 
 ## Contents
 
@@ -15,9 +15,13 @@ How the WSL user-data reads each key of [`Ubuntu-26.04.meta-data`](../src/Ubuntu
 
 ## Overview
 
-The meta-data file is a YAML template with the identifying values left empty. The user copies it to `%USERPROFILE%\.cloud-init\Ubuntu-26.04.meta-data`, fills it in and keeps the filled copy out of the repository. cloud-init's WSL datasource reads it, and the Jinja header of [`Ubuntu-26.04.user-data`](../src/Ubuntu-26.04.user-data) reads each key as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset.
+The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\<distro>.meta-data`, such as `Ubuntu-26.04.meta-data`, by copying the README's example and filling it in. Every distro reads the same keys, so one example serves them all. Releases don't ship it. The example leaves the identifying values empty, and its comments describe each key. cloud-init's WSL datasource reads the file.
 
-The header turns each key into the variables the cloud-config uses. This flowchart shows where each key ends up:
+The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. `invoke validate` renders the user-data with it in the `readme-example` case, and the [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, so both find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in and `invoke validate` checks, and add every new key to the example.
+
+Each key is read in the fragments in [`src/fragments/`](../src/fragments/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A distro's own fragment reads a key the same way, and a new key goes into the README's example for every distro.
+
+Each fragment turns the keys it reads into the variables its cloud-config uses. This flowchart shows where each key ends up:
 
 ```mermaid
 flowchart LR
@@ -37,15 +41,15 @@ flowchart LR
 
 Every key apart from `instance-id` needs `username`: without one, the user-data writes no `~/.gitconfig` or other file into a home, and installs nothing as a user.
 
-| Key | Expected type | Shipped value | Ends up in |
-| --- | --- | --- | --- |
-| `instance-id` | String | `ubuntu-wsl` | Read by the datasource, which needs it. The template doesn't use it |
-| `username` | String | Empty | `users:`, every `runuser` command and the home paths |
-| `git_name`, `git_email` | String | Empty | `[user]` in `~/.gitconfig` |
-| `git_signingkey` | String | Empty | `user.signingkey`, `gpg.format`, `commit.gpgsign`, `gpg.ssh.allowedSignersFile` and `allowed_signers` |
-| `git_ssh_program` | String | Empty | `gpg.ssh.program` |
-| `vscode_extensions` | List or string | `Anthropic.claude-code`, `ms-python.python` | One `code --install-extension` per ID |
-| `gh_extensions` | List or string | `https://github.com/nektos/gh-act` | One `gh extension install` per ID |
+| Key | Expected type | Value in the example | Read in | Ends up in |
+| --- | --- | --- | --- | --- |
+| `instance-id` | String | `wsl` | None | Read by the datasource, which needs it. No fragment uses it |
+| `username` | String | Empty | Every fragment from `50-virtualisation` on | `users:`, every `runuser` command and the home paths |
+| `git_name`, `git_email` | String | Empty | `80-git` | `[user]` in `~/.gitconfig` |
+| `git_signingkey` | String | Empty | `80-git` | `user.signingkey`, `gpg.format`, `commit.gpgsign`, `gpg.ssh.allowedSignersFile` and `allowed_signers` |
+| `git_ssh_program` | String | Empty | `80-git` | `gpg.ssh.program` |
+| `vscode_extensions` | List or string | `Anthropic.claude-code`, `ms-python.python` | `92-vscode` | One `code --install-extension` per ID |
+| `gh_extensions` | List or string | `https://github.com/nektos/gh-act` | `95-github-cli` | One `gh extension install` per ID |
 
 ## How each key is handled
 
@@ -109,22 +113,22 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 - The value is the entry's string form, with non-ASCII characters escaped by Python's `backslashreplace` and then quoted by Jinja's `tojson`. A non-string entry, such as `42`, prints as `42`.
 - It escapes to ASCII first because `tojson` writes a character outside the Basic Multilingual Plane as a surrogate pair, which YAML decodes into lone surrogates. cloud-init then can't write the `runcmd` script as UTF-8, and every entry fails.
 - It uses `printf` with `%s` rather than `echo`, because dash's `echo` interprets backslashes.
-- These lines sit inside the template's `{% if user %}` block, so nothing is reported without a username.
+- These lines sit inside the fragment's `{% if user %}` block, so nothing is reported without a username.
 
 ## Security and privacy
 
-- The meta-data holds everything identifying. The shipped template keeps those values empty and fills in only generic defaults, the two extension lists.
+- The meta-data holds everything identifying. The README's example keeps those values empty and fills in only generic defaults, the two extension lists.
 - Meta-data is the user's own input, but the user-data still treats it as untrusted where it reaches a shell. Only entries that pass the checks above are written into a command, and rejected ones go into `printf` as a quoted argument, not into the command text.
 - Values written into `~/.gitconfig` go through `gitval`, so `"`, `\` and comment characters stay inside the value.
 - `allowed_signers` trusts the key only in the `git` namespace.
 
 ## Decisions
 
-- **Validate in the template, not at runtime.** Checking each value before it's rendered keeps hostile text out of shell commands. The template's comments say only validated IDs reach the shell.
+- **Validate in the fragments, not at runtime.** Checking each value before it's rendered keeps hostile text out of shell commands. The fragments' comments say only validated IDs reach the shell.
 - **Accept a string for a list.** A comma or space-separated string is split into entries, so a list written on one line still works (inferred: no comment gives the reason).
 - **Report rather than fail.** A bad entry is skipped and named in the log, so the rest of the instance still builds.
 - **Derive the workspace from a noreply email only.** It's the one email form that holds the GitHub username (inferred).
-- **`*` as the fallback principal.** It keeps verification working when the email can't be written safely as a principal, at the cost of trusting the key for any identity (inferred: the meta-data comment states the fallback, not the reason).
+- **`*` as the fallback principal.** It keeps verification working when the email can't be written safely as a principal, at the cost of trusting the key for any identity (inferred: the example's comment states the fallback, not the reason).
 
 ## Limits
 
@@ -134,6 +138,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 - Without `username`, rejected values aren't reported (observed).
 - `gh extension install` runs before the user logs in to gh, so a private extension fails at first boot (inferred from the comment that a public one needs no login).
 - A VS Code extension install is skipped without a message when `/usr/local/bin/code` isn't executable, such as when VS Code isn't installed at the linked Windows path.
+- The README's example is read on `main`, not from a release. Between a change to the keys landing on `main` and its release, the example can name a key the latest release's user-data doesn't read, and an unread key is ignored without a message. The README at the release's tag has the example that matches it.
 
 ## Sources
 

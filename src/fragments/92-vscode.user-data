@@ -1,0 +1,46 @@
+## template: jinja
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+{% set user = ds.meta_data.username or '' %}
+{% set vscode_extensions = ds.meta_data.vscode_extensions or [] %}
+{% if vscode_extensions is string %}
+{% set vscode_extensions = vscode_extensions.replace(',', ' ').split() %}
+{% elif vscode_extensions is mapping or vscode_extensions is not sequence %}
+{% set vscode_extensions = [] %}
+{% endif %}
+{# Only publisher.name IDs, each part [A-Za-z0-9][A-Za-z0-9-]*, reach the shell. #}
+{% set extensions = namespace(valid=[], invalid=[]) %}
+{% for ext in vscode_extensions %}
+{% set publisher, dot, name = (ext | string).partition('.') %}
+{% if ext is string and dot and publisher[:1].isalnum() and name[:1].isalnum() and (publisher ~ name).isascii() and (publisher ~ name).replace('-', '').isalnum() %}
+{% set extensions.valid = extensions.valid + [ext] %}
+{% else %}
+{% set extensions.invalid = extensions.invalid + [ext | string] %}
+{% endif %}
+{% endfor %}
+
+# VS Code's launcher fetches its WSL server with wget; ubuntu-wsl only pulls it
+# in indirectly.
+packages:
+  - wget
+{% if user %}
+
+runcmd:
+  # One entry each so one failure does not stop the rest. VS Code's launcher
+  # only installs into ~/.vscode-server when WSL_DISTRO_NAME is set, which
+  # runuser clears; the value only labels the remote, so the instance name from
+  # wslpath will do.
+{% for ext in extensions.valid %}
+  - [runuser, -l, "{{ user }}", -c, '[ -x /usr/local/bin/code ] || exit 0; WSL_DISTRO_NAME="$(basename "$(wslpath -am /)")" code --install-extension {{ ext }}']
+{% endfor %}
+{# ASCII first: tojson writes non-BMP characters as surrogate pairs, which YAML decodes to lone surrogates that fail all of runcmd. printf, not echo: dash's echo interprets backslashes. #}
+{% for ext in extensions.invalid %}
+  - [printf, "Skipped vscode_extensions entry, not a publisher.name ID: %s\n", {{ ext.encode('ascii', 'backslashreplace').decode('ascii') | tojson }}]
+{% endfor %}
+{% endif %}

@@ -1,6 +1,13 @@
 {
 	"files.associations": {
-		"**/src/*.*-data": "jinja-yaml",
-		"**/.wslconfig": "toml"
-	}
+		"*.user-data": "jinja-yaml",
+    "*.meta-data": "jinja-yaml",
+		"*.wslconfig": "jinja-toml"
+	},
+	"json.schemas": [
+		{
+			"fileMatch": ["/src/distros/*/manifest.json"],
+			"url": "./schemas/distro-manifest.schema.json"
+		}
+	]
 }

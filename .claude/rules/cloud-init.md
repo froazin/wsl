@@ -5,16 +5,24 @@ paths:
 
 # WSL cloud-init (`src/`)
 
-`Ubuntu-26.04.user-data` is deployed to
-`%USERPROFILE%\.cloud-init\Ubuntu-26.04.user-data` next to a filled-in copy of
-`Ubuntu-26.04.meta-data`; both match an instance named `Ubuntu-26.04`, the
-default name from `wsl --install Ubuntu-26.04`. It runs once, on first boot,
-and Ubuntu's OOBE (`/usr/lib/wsl/wsl-setup`) waits for it.
+The user-data is written as cloud-config fragments. Shared ones are in
+`fragments/`; `distros/<distro>/manifest.json` lists every fragment in that
+distro's user-data, and its folder holds any fragments only it uses.
+`uv run invoke build` joins each distro's fragments with
+`cloud-init devel make-mime` into `dist/<distro>.user-data`, a MIME multipart
+file with one part per fragment. Edit `src/`, never `dist/`. Each release
+publishes them; users download one to `%USERPROFILE%\.cloud-init\` and write
+the meta-data beside it from the example in `README.md`, matching an instance
+named after the distro, such as `Ubuntu-26.04`, the default name from
+`wsl --install Ubuntu-26.04`. It runs once, on first boot, and Ubuntu's OOBE
+(`/usr/lib/wsl/wsl-setup`) waits for it. Read `docs/build.md` before you add,
+rename or renumber a fragment, and `docs/distros.md` before you change a
+manifest or put a fragment in a distro's folder. Share fragments by default.
 
 ## Keep it native
 
 Prefer plain cloud-init modules and semantics over custom scripts. Identifying
-values come only from `<InstanceName>.meta-data`, read in the template as
+values come only from `<InstanceName>.meta-data`, read in each fragment that uses them as
 `ds.meta_data.*`. Do not add loaders that read other files from the Windows
 side.
 
@@ -24,8 +32,18 @@ side.
   (`<Instance>` > `<ID>-<VERSION_ID>` > `<ID>-all` > `default`) and only
   `<Instance>.meta-data`, which must contain `instance-id`. Nothing is merged
   except Ubuntu Pro's `agent.yaml`, so never add an `ubuntu_pro` key.
-- With `agent.yaml` present the datasource wraps a Jinja user-data in
-  `#include`; Jinja still renders.
+- With `agent.yaml` present the datasource wraps a user-data that isn't
+  plain cloud-config, such as the MIME file, in `#include`; the parts still
+  render (inferred from the datasource's source).
+- cloud-init merges the parts in name order. Every fragment keeps the shared
+  `merge_how` (`list(append)`, `dict(no_replace, recurse_list)`), or its lists
+  replace the earlier fragments' lists. The number in a fragment's name sets
+  where its `runcmd` entries run; give a distro's own fragment a number no
+  shared fragment uses, so the order reads plainly.
+- A fragment that reads meta-data starts with `## template: jinja`.
+  cloud-init renders each part on its own, so a fragment sets every variable
+  and macro it uses, such as `user`; another fragment's are undefined, and an
+  undefined name in a condition is silently false.
 - Jinja runs with `trim_blocks` on and `lstrip_blocks` off: put every
   `{% %}` / `{# #}` tag at column 0, or its indentation is left behind and
   breaks YAML. Never write `{#`, `{{` or `{%` inside embedded shell.
@@ -38,7 +56,8 @@ side.
 - runcmd runs as root with no user bus, so `systemctl --user` fails there;
   enable user units with `systemctl --global enable`. The first
   `runuser -l <user>` entry starts the user's manager (pam_systemd), which
-  reads the global wants only when it starts, so global enables go above it.
+  reads the global wants only when it starts, so global enables go in an
+  earlier fragment.
   `--global` also reaches root's user manager, which `sudo su` starts; keep a
   unit out of it with a `ConditionUser=!root` drop-in.
 - Module order: init stage runs `write_files` and `users`; final stage runs
@@ -70,11 +89,13 @@ side.
 
 The repo is public. No usernames, emails, signing keys, hostnames or
 `/mnt/c/Users/<name>/` paths in any file here; they belong in the user's
-private meta-data. `Ubuntu-26.04.meta-data` is a template: identifying values
+private meta-data. `invoke validate` fails on such a path in `src/`, `dist/`
+or `README.md`. The README's meta-data example is public too: identifying values
 stay empty, and only generic defaults such as `vscode_extensions` and
-`gh_extensions` are filled in.
+`gh_extensions` are filled in. A key added to the user-data goes into the
+example, which the `readme-example` case checks.
 
 ## Validate
 
-Run the `validate-user-data` skill after every change. Add a mock case
-for any new meta-data key or conditional.
+Run the `validate-user-data` skill after every change. Add a mock case to
+`scripts/build/cases.py` for any new meta-data key or conditional.

@@ -1,0 +1,43 @@
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+write_files:
+  # No [user] section: the OOBE adds `default=` for whichever user exists.
+  - path: /etc/wsl.conf
+    permissions: "0644"
+    content: |
+      [boot]
+      systemd=true
+      command=mount -o remount,shared /
+
+      [interop]
+      enabled=true
+      appendWindowsPath=false
+
+  # WSL attaches swap before systemd starts, by default and even with swap=0 in
+  # .wslconfig, so this turns it off.
+  - path: /etc/systemd/system/disable-swap.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Disable the swap WSL attaches
+      ConditionVirtualization=wsl
+      After=local-fs.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/sbin/swapoff -a
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  # Picks up the units every part writes.
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, disable-swap.service]

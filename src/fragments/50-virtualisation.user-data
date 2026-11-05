@@ -1,0 +1,30 @@
+## template: jinja
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+{% set user = ds.meta_data.username or '' %}
+
+# qemu-kvm is a virtual package and must not be listed.
+packages:
+  - qemu-system-x86
+  - qemu-utils
+  - libvirt-daemon-system
+  - libvirt-clients
+  - virtinst
+  - ovmf
+  - swtpm
+  - swtpm-tools
+  - cpu-checker
+
+# libvirt is a group the packages create, so the user joins it here rather
+# than in `users`.
+runcmd:
+  - [virsh, --connect, "qemu:///system", net-autostart, default]
+{% if user %}
+  - [usermod, -aG, libvirt, "{{ user }}"]
+{% endif %}

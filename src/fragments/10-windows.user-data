@@ -1,0 +1,56 @@
+#cloud-config
+
+# Windows tools in the Linux PATH, and $BROWSER so xdg-open opens things in
+# Windows.
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+write_files:
+  # xdg-open falls back to $BROWSER when explorer.exe is not on PATH.
+  - path: /etc/profile.d/browser.sh
+    permissions: "0644"
+    content: |
+      export BROWSER=/usr/local/bin/start
+
+  - path: /etc/environment.d/90-browser.conf
+    permissions: "0644"
+    content: |
+      BROWSER=/usr/local/bin/start
+
+  - path: /usr/local/bin/start
+    permissions: "0755"
+    content: |
+      #!/usr/bin/sh
+      #
+      # Open a URL or file with its default Windows handler. Used as $BROWSER.
+
+      _target="$*"
+
+      if [ -e "$_target" ]; then
+      	_target="$(wslpath -w "$_target")" || exit 1
+      fi
+
+      # Passed in the environment, not the command, so it is never parsed as code.
+      # shellcheck disable=SC2016 # $env: is expanded by PowerShell, not sh.
+      START_TARGET="$_target" WSLENV="${WSLENV:+$WSLENV:}START_TARGET" \
+      	/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+      	-NoLogo \
+      	-NoProfile \
+      	-NonInteractive \
+      	-Command 'Start-Process -FilePath $env:START_TARGET' \
+      	</dev/null >/dev/null 2>&1 &
+
+      exit 0
+
+# Runs in the final stage, after packages. Each entry runs regardless of the
+# others' exit status.
+runcmd:
+  - [ln, -sfn, "/mnt/c/Program Files/Microsoft VS Code/bin/code", /usr/local/bin/code]
+  - [ln, -sfn, "/mnt/c/Program Files/WinGet/Links/op.exe", /usr/local/bin/op]
+  - [ln, -sfn, "/mnt/c/Program Files/OpenSSH/ssh.exe", /usr/local/bin/ssh]
+  - [ln, -sfn, "/mnt/c/Program Files/OpenSSH/ssh-add.exe", /usr/local/bin/ssh-add]
+  - [ln, -sfn, /mnt/c/Windows/System32/clip.exe, /usr/local/bin/clip]
