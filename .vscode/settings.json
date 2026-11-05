@@ -1,13 +1,11 @@
 {
 	"files.associations": {
 		"*.user-data": "jinja-yaml",
-    "*.meta-data": "jinja-yaml",
+		"*.vendor-data": "jinja-yaml",
+		"*.meta-data": "jinja-yaml",
 		"*.wslconfig": "jinja-toml"
 	},
-	"json.schemas": [
-		{
-			"fileMatch": ["/src/distros/*/manifest.json"],
-			"url": "./schemas/distro-manifest.schema.json"
-		}
-	]
+	"yaml.schemas": {
+		"./schemas/manifest.schema.json": "/src/manifests/*.y*ml"
+	}
 }

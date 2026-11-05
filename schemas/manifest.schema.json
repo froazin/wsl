@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Distro manifest",
+  "description": "One distro's user-data, in src/manifests/<distro>.yml: the WSL distribution it's for and the fragments it's built from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "version", "description", "fragments"],
+  "properties": {
+    "name": {
+      "description": "The WSL distribution's name, which is also the default instance name from wsl --install. The user-data only runs on an instance whose meta-data matches it.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "examples": ["Ubuntu-26.04"]
+    },
+    "version": {
+      "description": "The version of the distro's user-data, in Semantic Versioning 2.0.0 without a v prefix.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\\+([0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*))?$",
+      "examples": ["0.1.0", "1.0.0-rc.1"]
+    },
+    "description": {
+      "description": "A sentence saying what the distro's user-data is for.",
+      "type": "string",
+      "minLength": 1
+    },
+    "fragments": {
+      "description": "Every fragment in the distro's user-data, keyed by position. cloud-init merges them in ascending order of their keys, which can have gaps. Each value is the name of a file in src/fragments/ without .user-data, with no number in front: the key sets the order. List each fragment once: the schema can't check that values are unique.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+      },
+      "examples": [{ "0": "base", "1": "windows", "2": "utilities" }]
+    }
+  }
+}
