@@ -1,20 +1,20 @@
 ---
 name: Release
 
-on:
-  push:
-    branches:
-      - main
-    # A change only to the docs can't change the config, so it can't make a release. The same list as the CI workflow's.
-    paths:
-      - "**"
-      - "!**.md"
-      - "README.md"
-      - "!.claude/**"
-      - "!.github/dependabot.yml"
-      - "!.vscode/**"
-      - "!docs/**"
-      - "!LICENSE"
+on: {}
+  # push:
+  #   branches:
+  #     - main
+  #   # A change only to the docs can't change the config, so it can't make a release. The same list as the CI workflow's.
+  #   paths:
+  #     - "**"
+  #     - "!**.md"
+  #     - "README.md"
+  #     - "!.claude/**"
+  #     - "!.github/dependabot.yml"
+  #     - "!.vscode/**"
+  #     - "!docs/**"
+  #     - "!LICENSE"
 
 permissions:
   contents: read
