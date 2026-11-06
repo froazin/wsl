@@ -16,8 +16,5 @@ switch_case_indent = true
 space_redirects = true
 function_next_line = true
 
-[Makefile]
-indent_style = tab
-
 [.venv/**]
 ignore = true

@@ -6,6 +6,6 @@
 		"*.wslconfig": "jinja-toml"
 	},
 	"yaml.schemas": {
-		"./schemas/manifest.schema.json": "/src/manifests/*.y*ml"
+		"./cloud-init/schemas/manifest.schema.json": "/cloud-init/manifests/*.y*ml"
 	}
 }
