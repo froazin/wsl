@@ -1,4 +1,4 @@
-"""The error scripts.build raises for a failure the user can fix."""
+"""The error pkg raises for a failure the user can fix."""
 
 
 class BuildError(Exception):

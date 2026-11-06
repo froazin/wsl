@@ -10,9 +10,6 @@ from .errors import BuildError
 from .fragments import SUFFIX as FRAGMENT_SUFFIX
 from .schema import check_schema
 
-SCHEMA: Path | None = None
-"""schemas/manifest.schema.json, which tasks.py finds and sets when a task runs."""
-
 
 @dataclass(frozen=True, kw_only=True)
 class Manifest:
@@ -40,6 +37,11 @@ class Manifest:
 
         if schema:
             check_schema(path, data, schema)
+
+        names = list(data["fragments"].values())
+        repeated = sorted({name for name in names if names.count(name) > 1})
+        if repeated:
+            raise BuildError(f"{path} lists {', '.join(repeated)} more than once. List each fragment once.")
 
         fragments = sorted(
             (int(key), Path(fragments_dir) / f"{name}{FRAGMENT_SUFFIX}") for key, name in data["fragments"].items()

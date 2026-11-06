@@ -10,6 +10,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from pkg.errors import BuildError
 from pkg.manifest import Manifest
 
 ROOT = Path(__file__).parent
@@ -31,17 +32,23 @@ def build(_: Context, filter: str | None = None):
     if not MANIFESTS_SRC.is_dir():
         raise Exit(f"{MANIFESTS_SRC} not found.", code=1)
 
-    paths = [p for p in sorted(MANIFESTS_SRC.glob("*.y*ml")) if not filter or filter.lower() in p.stem.lower()]
-    if not paths:
-        raise (
-            Exit(f"No manifests found in {MANIFESTS_SRC} matching {filter}.", code=1)
-            if filter
-            else Exit(f"No manifests found in {MANIFESTS_SRC}.", code=1)
-        )
+    try:
+        paths = sorted(p for p in MANIFESTS_SRC.glob("*.y*ml") if not filter or filter.lower() in p.stem.lower())
 
-    manifests: list[Manifest] = []
-    for p in paths:
-        manifests.append(Manifest.from_file(p, FRAGMENTS_SRC, schema=MANIFESTS_SCHEMA))
+        if len({p.stem.lower() for p in paths}) != len(paths):
+            raise BuildError("Duplicate manifest files found.")
 
-    for m in manifests:
-        m.build(DIST_DIR)
+        if not paths:
+            raise BuildError(
+                f"No manifests in {MANIFESTS_SRC} match {filter}." if filter else f"No manifests in {MANIFESTS_SRC}."
+            )
+
+        manifests = [Manifest.from_file(p, FRAGMENTS_SRC, schema=MANIFESTS_SCHEMA) for p in paths]
+
+        if len({m.name.lower() for m in manifests}) != len(manifests):
+            raise BuildError("Duplicate manifest names found.")
+
+        for m in manifests:
+            m.build(DIST_DIR)
+    except BuildError as error:
+        raise Exit(str(error), code=1) from error
