@@ -2,14 +2,12 @@
 name = "wsl"
 version = "0"
 requires-python = ">=3.14"
-dependencies = []
 
 [dependency-groups]
 dev = [
     "invoke>=3.0.3",
     "pyright[nodejs]>=1.1.414",
     "pytest>=9.1.1",
-    "python-semantic-release>=10.7.0",
     "ruff>=0.17.1",
 ]
 
@@ -21,34 +19,25 @@ python-preference = "only-system"
 
 [tool.pytest.ini_options]
 minversion = "9.1"
-testpaths = ["scripts"]
-# scripts/hooks holds hook scripts, which the tests import as top-level modules.
-pythonpath = [".", "scripts/hooks"]
-# pytest's defaults without "build", which would skip scripts/build.
-norecursedirs = [".*", "*.egg", "_darcs", "CVS", "dist", "node_modules", "venv", "{arch}"]
-# Test files in different packages can share a name, such as test_testing.py, so import them by path.
-addopts = ["-ra", "-q", "-p", "no:cacheprovider", "--import-mode=importlib"]
+testpaths = ["tests"]
+pythonpath = ["pkg"]
+norecursedirs = [
+    ".*",
+    "*.egg",
+    "_darcs",
+    "CVS",
+    "dist",
+    "node_modules",
+    "venv",
+    "{arch}",
+]
+addopts = ["-ra", "-q", "-p", "no:cacheprovider"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py314"
+# The packages in pkg/ are first-party, for sorting imports.
+src = [".", "pkg"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
-
-# invoke version only runs semantic-release with --print, so it never writes a version file, changelog, commit or tag.
-# The release workflow creates the tag. See scripts/release.
-[tool.semantic_release]
-commit_parser = "conventional-monorepo"
-allow_zero_version = true
-# Below 1.0.0, a breaking change bumps the minor version.
-major_on_zero = false
-tag_format = "v{version}"
-
-[tool.semantic_release.branches.main]
-match = "^main$"
-
-# Only commits that change src/ count towards the version. semantic-release resolves the path from the working
-# directory, which is the repository root.
-[tool.semantic_release.commit_parser_options]
-path_filters = ["src"]

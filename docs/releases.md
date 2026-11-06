@@ -1,6 +1,9 @@
 # Releases
 
-How [`.github/workflows/release.yml`](../.github/workflows/release.yml) releases the config from `main`: how it decides whether a release is due and its version, the end-to-end tests on Windows runners and the tags and assets it publishes. It's for engineers changing the workflow, [`scripts/release/`](../scripts/release/) or the end-to-end scripts in [`.github/scripts/`](../.github/scripts/).
+How [`.github/workflows/release.yml`](../.github/workflows/release.yml) releases the config from `main`: how it decides whether a release is due and its version, the end-to-end tests on Windows runners and the tags and assets it publishes. It's for engineers changing the workflow or the end-to-end scripts in [`.github/scripts/`](../.github/scripts/).
+
+> [!WARNING]
+> Releases haven't been rebuilt for the new build yet. `release.yml` still runs `uv run invoke validate` and `uv run invoke version`, and the `version` task, `scripts/release/` and the semantic-release settings in `pyproject.toml` were removed with the old build, so the workflow's `build` job fails until releases are rebuilt. This doc describes the old release process.
 
 ## Contents
 
@@ -35,7 +38,7 @@ flowchart LR
 
 ## How the version is decided
 
-`invoke version --previous <dir>` calls `next_version()` in [`version.py`](../scripts/release/version.py). It prints the version, or nothing when no release is due.
+`invoke version --previous <dir>` calls `next_version()` in `scripts/release/version.py`. It prints the version, or nothing when no release is due.
 
 1. **Is a release due?** It compares `dist/` with the latest release's files. The file names must match. A MIME user-data matches when its parts' file names, content types and decoded payloads do, because make-mime picks a random boundary on every build (see [Build and validation](build.md#how-the-build-works)). Any other file must match byte for byte. When they all match, no release is due, whatever the commits say.
 1. **What version?** It runs semantic-release with `version --print-last-released` (empty before the first release, read as `0.0.0`) and `version --print`.

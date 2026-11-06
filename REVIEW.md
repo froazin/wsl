@@ -2,7 +2,7 @@
 
 What CI's Claude code review flags on pull requests (PRs) in this repository, at what severity and what it skips. Rules for all work are in `CLAUDE.md`, and a change that breaks one of them is a finding. This file adds only what's specific to reviews.
 
-Judge the config in `src/` as what ships: it's built into each release's files, which people download onto their own machines, where the user-data runs as root on an instance's first boot. Judge the tooling in `tasks.py` and `scripts/`, the end-to-end scripts and the workflows by whether they still build, check and release the config correctly, not by the standards of the config itself.
+Judge the config in `src/` as what ships: it's built into each release's files, which people download onto their own machines, where the user-data runs as root on an instance's first boot. Judge the tooling in the `Makefile`, `tasks.py` and `pkg/`, the end-to-end scripts and the workflows by whether they still build, check and release the config correctly, not by the standards of the config itself.
 
 ## What Important means here
 
@@ -10,7 +10,6 @@ Mark a finding Important only when the change would do one of these:
 
 - Make the user-data fail to render, fail `cloud-init schema` or fail on a first boot. For example: a package name that a distro whose manifest lists the fragment doesn't have, which fails the whole package install; a Jinja tag that isn't at column 0; a fragment that uses a Jinja variable it doesn't set itself, because cloud-init renders each part on its own; `{{`, `{%` or `{#` inside embedded shell; a `users` or non-deferred `write_files` entry that needs a package or a group a package creates; `power_state` or `package_reboot_if_required`; `systemctl --user` in `runcmd`; or a `[user]` or `[time]` section in `/etc/wsl.conf`. `.claude/rules/cloud-init.md` lists the facts behind these.
 - Let a meta-data value reach a shell command without the validation `docs/meta-data.md` describes, write a value into `~/.gitconfig` without the `gitval` macro, or report a rejected value other than with `printf %s` and an ASCII-escaped `tojson`.
-- Add a meta-data key or a conditional block without a case in `scripts/build/cases.py`, including the case where the key is unset.
 - Put identifying data into the repository, such as a real name, email, username, signing key, hostname or `/mnt/c/Users/<name>/` path. The repository is public, and identifying values belong in the user's meta-data.
 - Fetch something at boot over plain HTTP, run a downloaded script as root that could run as the user, or replace the embedded GitHub CLI apt key with one fetched at boot.
 - Change the `packages` list without keeping it in step with the dotfiles modules' dependencies, as `CLAUDE.md` says.
@@ -32,7 +31,7 @@ Every comment must be resolved before the PR can merge, so report Nits sparingly
 
 ## Don't report
 
-- Anything Ruff, Pyright, pytest, `invoke validate`, ShellCheck or shfmt reports. CI runs them before the review.
+- Anything Ruff, Pyright, pytest, ShellCheck or shfmt reports. CI runs them before the review.
 - The PR's title and description.
 - A limit that a design doc's Limits section records, unless the change makes it worse.
 - An issue that a resolved review thread on the PR already raises, whatever its replies say. Resolving a thread settles it.
@@ -45,7 +44,7 @@ These are the rules that no tool, test or check enforces.
 
 - A new `runcmd` entry that installs something for the user runs with `runuser -l <user>`, so `HOME` is the user's, and uses the tool's official installer, so the tool can update itself.
 - Each install in `runcmd` is its own entry, so one failure doesn't stop the rest.
-- A new or renumbered fragment keeps `runcmd` entries that depend on each other in order, since the fragments merge in name order. `docs/provisioning.md` says which do.
+- A fragment added to a manifest, or moved within one, keeps `runcmd` entries that depend on each other in order, since the fragments merge in the manifest's order. `docs/provisioning.md` says which do.
 - A change to a shared fragment in `src/fragments/` is right for every distro whose manifest lists it, and a fragment in a distro's own folder holds only what's specific to that distro, as `docs/distros.md` says. A copy of a shared fragment in a distro's folder is a Nit at most, unless it drops something the shared one does.
 - A new `write_files` entry in the user's home is deferred, because `write_files` runs before `users` creates the user.
 - A new user-facing behaviour is in the README's "What it sets up" and in `docs/provisioning.md`.

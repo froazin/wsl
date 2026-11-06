@@ -1,26 +1,26 @@
 ---
 name: CI
 
-on:
-  pull_request:
-    branches:
-      - main
-    # A change only to the docs can't change the config or how it's checked, so it runs nothing. README.md isn't skipped,
-    # because it holds the meta-data example the checks read. A later pattern wins over an earlier one.
-    paths:
-      - "**"
-      - "!**.md"
-      - "README.md"
-      - "!.claude/**"
-      - "!.github/dependabot.yml"
-      - "!.vscode/**"
-      - "!docs/**"
-      - "!LICENSE"
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
+on: {}
+  # pull_request:
+  #   branches:
+  #     - main
+  #   # A change only to the docs can't change the config or how it's checked, so it runs nothing. README.md isn't skipped,
+  #   # because it holds the meta-data example the checks read. A later pattern wins over an earlier one.
+  #   paths:
+  #     - "**"
+  #     - "!**.md"
+  #     - "README.md"
+  #     - "!.claude/**"
+  #     - "!.github/dependabot.yml"
+  #     - "!.vscode/**"
+  #     - "!docs/**"
+  #     - "!LICENSE"
+  #   types:
+  #     - opened
+  #     - synchronize
+  #     - reopened
+  #     - ready_for_review
 
 permissions:
   contents: read

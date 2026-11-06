@@ -2,6 +2,9 @@
 
 How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull request (PR) before it merges: the lint, tests and validation, and Claude's code review. It's for engineers changing the workflow or [`REVIEW.md`](../REVIEW.md). The end-to-end tests on Windows runners run on `main` before a release, as [Releases](releases.md) describes.
 
+> [!WARNING]
+> `ci.yml` hasn't been updated for the new build yet. Its `checks` job still runs `uv run invoke validate`, which no longer exists, and `uv run pytest`, which fails while there are no tests, so the job fails until the workflow is updated. This doc describes the workflow as it is.
+
 ## Contents
 
 1. [Overview](#overview)
@@ -32,7 +35,7 @@ flowchart LR
 
 ## Checks
 
-The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from the same release as the instance. It installs `cloud-init`, `python3-yaml`, `shellcheck` and `shfmt` from apt, sets up uv and creates the venv on the runner's system Python with its system site packages (see [Build and validation](build.md#tool-configuration)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): Ruff, `ruff format --check`, Pyright, pytest, `uv run invoke validate`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`.
+The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from the same release as the instance. It installs `cloud-init`, `python3-yaml`, `shellcheck` and `shfmt` from apt, sets up uv and creates the venv on the runner's system Python with its system site packages (see [Build](build.md#tool-configuration)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): Ruff, `ruff format --check`, Pyright, pytest, `uv run invoke validate`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`.
 
 ## Code review
 
