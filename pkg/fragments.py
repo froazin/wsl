@@ -8,8 +8,8 @@ from cloudinit.cmd.devel.make_mime import create_mime_message
 
 from .errors import BuildError
 
-SUFFIX = ".user-data"
-JINJA_HEADER = "## template: jinja\n"
+FRAGMENT_SUFFIX = ".user-data"
+FRAGMENT_JINJA_HEADER = "## template: jinja\n"
 
 
 def create_mime_message_from_paths(paths: Iterable[Path]) -> str:
@@ -28,7 +28,7 @@ def create_mime_message_from_paths(paths: Iterable[Path]) -> str:
     parts = []
     for path in paths:
         text = path.read_text()
-        part_type = "jinja2" if text.startswith(JINJA_HEADER) else "cloud-config"
+        part_type = "jinja2" if text.startswith(FRAGMENT_JINJA_HEADER) else "cloud-config"
         parts.append((io.StringIO(text), path.name, part_type))
     message, _ = create_mime_message(parts)
     return f"{message}\n"

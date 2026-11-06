@@ -5,9 +5,8 @@ from pathlib import Path
 
 import yaml
 
-from . import fragments
 from .errors import BuildError
-from .fragments import SUFFIX as FRAGMENT_SUFFIX
+from .fragments import FRAGMENT_SUFFIX, create_mime_message_from_paths
 from .schema import check_schema
 
 
@@ -58,5 +57,5 @@ class Manifest:
 
         out = Path(out_dir) / f"{self.name}.user-data"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(fragments.create_mime_message_from_paths(self.fragments.values()))
+        out.write_text(create_mime_message_from_paths(self.fragments.values()))
         return out
