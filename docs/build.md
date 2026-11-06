@@ -1,6 +1,6 @@
-# Build and validation
+# Build
 
-How `tasks.py` and the Python packages in [`scripts/`](../scripts/) build the cloud-init fragments in [`src/`](../src/) into the files users download, and how the build is checked. It's for engineers changing a fragment, a task or the tooling. How each distro's manifest picks its fragments is in [Distros and manifests](distros.md), the commands to run are in [CONTRIBUTING.md](../CONTRIBUTING.md#checks), and what the user-data does on an instance is in [Provisioning](provisioning.md).
+How the [`Makefile`](../Makefile), [`tasks.py`](../tasks.py) and the Python package in [`pkg/`](../pkg/) build the cloud-init fragments in [`src/`](../src/) into the files users download. It's for engineers changing a fragment, a task or the tooling. What a manifest holds is in [Distros and manifests](distros.md), the commands to run are in [CONTRIBUTING.md](../CONTRIBUTING.md#checks), and what the user-data does on an instance is in [Provisioning](provisioning.md).
 
 ## Contents
 
@@ -9,7 +9,6 @@ How `tasks.py` and the Python packages in [`scripts/`](../scripts/) build the cl
 1. [How the build works](#how-the-build-works)
 1. [Validation](#validation)
 1. [Errors](#errors)
-1. [Unit tests](#unit-tests)
 1. [Tool configuration](#tool-configuration)
 1. [Decisions](#decisions)
 1. [Limits](#limits)
@@ -17,31 +16,28 @@ How `tasks.py` and the Python packages in [`scripts/`](../scripts/) build the cl
 
 ## Overview
 
-The tooling has two layers:
+The tooling has three layers:
 
-- **Tasks:** [`tasks.py`](../tasks.py) defines the Invoke tasks `build`, `validate` and `version`. Each is a thin wrapper that calls a package in `scripts/` and turns its error into an exit status.
-- **Logic:** [`scripts/build/`](../scripts/build/) builds and validates the config, and [`scripts/release/`](../scripts/release/) works out the next release's version, as [Releases](releases.md) describes. Neither imports Invoke.
+- **Environment:** the `Makefile` creates `.venv` and runs the task. `make build [filter]` runs `make sync`, then `uv run invoke build`.
+- **Task:** `tasks.py` defines the Invoke task `build`. It finds the manifests, calls `pkg/` and turns a `BuildError` into an exit status.
+- **Logic:** [`pkg/manifest.py`](../pkg/manifest.py) loads a manifest and writes its user-data, [`pkg/schema.py`](../pkg/schema.py) checks a manifest against the schema and [`pkg/fragments.py`](../pkg/fragments.py) joins the fragments. None of them imports Invoke.
 
-This flowchart shows what each task calls, and the files and tools it uses:
+This flowchart shows how `make build` turns the manifests into `dist/`:
 
 ```mermaid
 flowchart LR
-    accTitle: How the tasks build and check the config
-    accDescr: The invoke CLI runs a task in tasks.py. The build task calls scripts.build.build, which loads each distro's manifest from src/ with scripts.build.manifest, joins its fragments with cloud-init devel make-mime and writes dist/. The validate task builds first, then calls scripts.build.validation, which takes the cases from scripts.build.cases and the meta-data example from README.md, merges each distro's user-data with cloud-init's part handlers, renders each fragment on its own and runs cloud-init schema, git, ssh-keygen and ShellCheck. The version task calls scripts.release.
-    cli["invoke CLI"] -->|"task and flags"| tasks["tasks.py"]
-    tasks -->|"build, and validate unless --skip-build"| build["scripts.build.build"]
-    tasks -->|validate| validation["scripts.build.validation"]
-    tasks -->|version| release["scripts.release"]
-    src[("src/")] -->|"manifests and fragments"| manifest["scripts.build.manifest"]
-    manifest -->|"each distro's fragments"| build
-    manifest -->|"each distro's fragments"| validation
-    build -->|"each distro, from a temporary folder"| mime["cloud-init devel make-mime"]
-    mime -->|"one MIME user-data per distro"| dist[("dist/")]
-    cases["scripts.build.cases"] -->|"32 cases"| validation
-    readme["README.md"] -->|"the meta-data example"| validation
-    dist -->|"merged with cloud-init's part handlers"| validation
-    validation -->|"merged cloud-config"| tools["cloud-init schema, git, ssh-keygen, ShellCheck"]
-    dist -->|"compared with the latest release"| release
+    accTitle: How make build turns the manifests into dist
+    accDescr: make build sets up the venv with make sync, then runs invoke build. The build task picks the manifests in src/manifests whose file name contains the filter. Manifest.from_file reads each one, checks it with pkg.schema against schemas/manifest.schema.json and resolves its fragment names to paths in src/fragments. Manifest.build passes the paths to pkg.fragments, which joins them with cloud-init's create_mime_message and returns the user-data, which build writes to dist.
+    make["make build [filter]"] -->|"make sync first"| venv[(".venv, with system site packages")]
+    make -->|"uv run invoke build --filter"| task["tasks.py: build"]
+    manifests[("src/manifests/")] -->|"files whose name contains the filter"| task
+    task -->|"each manifest's path"| load["Manifest.from_file"]
+    schema["schemas/manifest.schema.json"] -->|"pkg.schema.check_schema"| load
+    load -->|"Manifest, with each fragment's path"| build["Manifest.build"]
+    build -->|"fragment paths, in key order"| join["pkg.fragments"]
+    fragments[("src/fragments/")] -->|"each fragment's text"| join
+    join -->|"cloudinit's create_mime_message"| build
+    build -->|"one MIME user-data per manifest"| dist[("dist/")]
 ```
 
 ## The source layout
@@ -49,90 +45,70 @@ flowchart LR
 ```text
 src/
 ├── fragments/
-│   ├── 00-base.user-data            merge_how, locale, apt update and upgrade
-│   ├── 10-windows.user-data         Windows tool links, $BROWSER and the start script
+│   ├── base.user-data             merge_how, locale, apt update and upgrade
+│   ├── windows.user-data          Windows tool links, $BROWSER and the start script
 │   ├── ...
-│   └── 99-dotfiles.user-data        the dotfiles installs, for the user and root
-└── distros/
-    └── Ubuntu-26.04/
-        └── manifest.json            the fragments in dist/Ubuntu-26.04.user-data
+│   └── dotfiles.user-data         the dotfiles installs, for the user and root
+└── manifests/
+    └── ubuntu-26.04.yml           the fragments in dist/Ubuntu-26.04.user-data
 ```
 
-- Each fragment is a cloud-config named `NN-<feature>.user-data`. The number sets its place in the merge, and so the order of `runcmd`. Each becomes one part of a distro's MIME user-data.
-- `src/fragments/` holds the shared fragments, and a distro's folder holds its `manifest.json` and any fragments only it uses. [Distros and manifests](distros.md) says which goes where.
+- Each fragment is a cloud-config named `<feature>.user-data`, and becomes one part of a manifest's MIME user-data. The manifest's keys set its place in the merge, and so the order of `runcmd`.
 - A fragment that reads meta-data starts with `## template: jinja` on its first line, then `#cloud-config`.
 - Every fragment keeps the same `merge_how`: `list(append)` and `dict(no_replace, recurse_list)`. [How the build works](#how-the-build-works) says why.
-- Edit `src/`, never `dist/`. `dist/` is ignored by Git, and every build empties it.
+- Edit `src/`, never `dist/`. Git ignores `dist/`.
 
 ## How the build works
 
-`invoke build` calls `build()` in [`build.py`](../scripts/build/build.py). It fails if `src/` holds anything but `fragments/` and `distros/`, and loads every distro's manifest, as [Finding the fragments](distros.md#finding-the-fragments) describes. Then it empties `dist/`, and for each distro, in name order:
+`invoke build` takes every `*.yml` or `*.yaml` file in `src/manifests/`, in name order. With `--filter`, it keeps only the files whose name contains the filter, ignoring case. `make build ubuntu` passes `ubuntu` as the filter. WSL finds a user-data by name without regard to case, so two of the files kept whose names differ only in case or extension, such as `Ubuntu.yml` and `ubuntu.yaml`, are an error, and so are two whose `name` differs only in case, because they'd write the same user-data. For each file, it:
 
-1. Copies the fragments its manifest lists into a temporary folder. make-mime names each part by the path it's given, so attaching them from one folder names each part by its file name, wherever the fragment came from.
-1. Runs `cloud-init devel make-mime` there, attaching each fragment in name order. A fragment is `jinja2` when its first line is `## template: jinja`, and `cloud-config` otherwise.
-1. Writes the result to `dist/<distro>.user-data`.
+1. Loads the manifest with `Manifest.from_file`, which checks it against the schema and turns each fragment's name into `src/fragments/<name>.user-data`, in key order. [Distros and manifests](distros.md) describes the file.
+1. Calls `Manifest.build`, which passes the paths to `create_mime_message_from_paths` in `pkg/fragments.py`. That checks every fragment exists, then reads each one, makes it a `jinja2` part when it starts with `## template: jinja` and a `cloud-config` part otherwise, and names the part after its file, such as `base.user-data`.
+1. Joins the parts with `create_mime_message`, from `cloudinit.cmd.devel.make_mime`, the function behind `cloud-init devel make-mime`, and writes the result to `dist/<name>.user-data`, where `<name>` is the manifest's `name`.
 
 Nothing else is built: users write the meta-data from the README's example. What follows from the fragments being separate parts:
 
 - **One file for WSL.** cloud-init's WSL datasource reads exactly one user-data file, so it can't read a folder of parts. A MIME multipart file holds them all, and cloud-init splits it at boot.
-- **Part order and `merge_how`.** cloud-init merges the parts in the order they appear in the MIME file, which is name order. Without a `merge_how` that appends, a fragment's `packages`, `write_files` or `runcmd` would replace the earlier fragments' lists. Keep order-dependent entries in the right fragment: the global `podman.socket` enable is in `40-podman`, before the first `runuser -l` in `90-development`, as [Provisioning](provisioning.md#runcmd) explains. A distro's own fragments merge in the same order.
-- **Jinja per part.** cloud-init renders each Jinja part on its own, with the instance's meta-data, before it merges them. A fragment can't see another fragment's variables or macros, so each sets every variable it uses, such as `user`, and `90-development` and `99-dotfiles` each define the `workspace` macro.
-- **Base64 parts.** make-mime base64-encodes each part, so the built user-data isn't readable as text. Read the fragments in `src/` instead.
-- **A random boundary.** make-mime picks a new MIME boundary each time, so two builds of the same parts differ byte for byte. The release workflow compares the parts, not the bytes (see [Releases](releases.md#how-the-version-is-decided)).
+- **Part order and `merge_how`.** cloud-init walks the parts in the order they appear in the MIME file (`walk()` in `cloudinit/handlers/__init__.py`), which is the manifest's key order. Without a `merge_how` that appends, a fragment's `packages`, `write_files` or `runcmd` would replace the earlier fragments' lists. Keep order-dependent entries in the right fragment: the global `podman.socket` enable is in `podman`, before the first `runuser -l` in `development`, as [Provisioning](provisioning.md#runcmd) explains.
+- **Jinja per part.** cloud-init renders each Jinja part on its own, with the instance's meta-data, before it merges them. A fragment can't see another fragment's variables or macros, so each sets every variable it uses, such as `user`, and `development` and `dotfiles` each define the `workspace` macro.
+- **Base64 parts.** Each part is base64-encoded, so the built user-data isn't readable as text. Read the fragments in `src/` instead.
+- **A random boundary.** `create_mime_message` picks a new MIME boundary each time, so two builds of the same parts differ byte for byte.
 
 ## Validation
 
-`invoke validate` builds `dist/` first, unless `--skip-build` is given, then calls `validate()` in [`validation.py`](../scripts/build/validation.py). It needs `cloud-init`, `git`, `shellcheck` and `ssh-keygen`, and makes throwaway ed25519 and ECDSA keys for the signing cases.
-
-For each distro, and each case in [`cases.py`](../scripts/build/cases.py), it:
-
-1. Merges `dist/<distro>.user-data` with cloud-init's own part handlers (`UserDataProcessor`, `CloudConfigPartHandler` and `JinjaTemplatePartHandler`), with the case's meta-data as instance-data. That's what cloud-init does at boot. `cloud-init devel render` can't read a MIME file.
-1. Checks the merged cloud-config: no undefined Jinja variable, `cloud-init schema -c` passes and it starts with `#cloud-config`.
-1. Renders each of the distro's fragments on its own, and checks it renders and is valid YAML. Then it checks the merged config lists every fragment as a part, and that its `packages`, `write_files` and `runcmd` are every fragment's entries appended in name order. A fragment that lost its `merge_how` fails here.
-1. Checks the case's expectations: the user, the workspace directory, the extensions installed and skipped, the `podman.socket` order, root's dotfiles install and that `runcmd` can be written as UTF-8.
-1. Checks what git reads back from `.gitconfig`, and that `allowed_signers` works with `ssh-keygen` as git uses it.
-
-The `readme-example` case renders with the README's [meta-data example](../README.md#the-meta-data-example), plus a username. `meta_data_example()` finds it as the `yaml` code block straight after the `<!-- meta-data example -->` comment, and raises a `BuildError` when there's no such block, it isn't a YAML mapping or it doesn't leave `username`, `git_name` and `git_email` empty on lines of their own, as `seed-cloud-init.ps1` needs to fill them in.
-
-After each distro's cases, it runs ShellCheck on `/usr/local/bin/start` from its `full` case. Then it checks that every file in `src/fragments/` is in a distro's manifest, every file in `src/` and `dist/`, with the MIME parts decoded, and `README.md`, with its meta-data example, for a concrete `/mnt/c/Users/<name>/` path, and every Jinja fragment in `src/` for a `{%` or `{#` tag that starts a line away from column 0.
-
-It prints `ok   <distro>: <case>` or `FAIL <distro>: <case>` for each case, after a `FAIL: <distro>: <case>: <problem>` line for each problem. It ends with `All cases passed.`, or raises a `BuildError`. The cases and what each proves are in the [validate-user-data skill](../.claude/skills/validate-user-data/SKILL.md). Add a case for every new meta-data key or conditional, including the key being unset.
+There is no validation yet. The old `invoke validate` task, which merged the user-data for each mock meta-data case with cloud-init's part handlers and checked the result, was removed with the old build, and will be rebuilt for the YAML manifests. Until then, `make build` only proves that every manifest matches the schema and that every fragment it lists exists.
 
 ## Errors
 
-- `scripts.build` raises [`BuildError`](../scripts/build/errors.py), and `scripts.release` raises [`ReleaseError`](../scripts/release/errors.py), for a failure the user can fix. `tasks.py` turns each into an `Exit` with status 1, so Invoke prints the message without a traceback.
-- `BuildError` covers a manifest or fragment that's wrong, as [Finding the fragments](distros.md#finding-the-fragments) lists, an entry in `src/` other than `fragments/` and `distros/`, a missing command, a missing user-data in `dist/`, a missing or broken meta-data example in the README and a failed validation.
-- A failed `make-mime` raises Invoke's `UnexpectedExit` from `c.run`, which Invoke reports without a traceback (inferred).
+- `pkg/` raises [`BuildError`](../pkg/errors.py) for a failure the user can fix: a manifest that can't be read, isn't valid YAML, doesn't match the schema or lists a fragment twice, or a fragment that doesn't exist. `tasks.py` raises it too for no manifests to build, or two with the same file name or `name`, ignoring case. The schema error lists every problem with where it is, such as `- $.version: ...`. `tasks.py` turns it into an `Exit` with status 1, so Invoke prints the message without a traceback.
+- `tasks.py` exits with status 1 itself when the schema or `src/manifests/` is missing.
 - Any other exception is a bug, and keeps its traceback.
-- cloud-init's own warnings for a part that fails, such as "Failed loading yaml blob", go to standard error beside the `FAIL:` lines.
-
-## Unit tests
-
-- Tests live in `scripts/<package>/test/`, without an `__init__.py`. `testpaths = ["scripts"]`, so pytest collects only those. `tasks.py` has no tests: it holds no logic.
-- `norecursedirs` is pytest's default list without `build`, which would otherwise skip `scripts/build/`.
-- `--import-mode=importlib` imports each test file by path, so test files in different packages can share a name.
-- The build and validation tests run no external commands. The version tests build test dists with the real `make-mime`, and one runs semantic-release with a bad option.
 
 ## Tool configuration
 
-- **Python:** the system Python 3.14. [`pyproject.toml`](../pyproject.toml) sets `python-preference = "only-system"` and `python-downloads = "never"`, so uv never fetches its own Python. `package = false`: nothing is installed, and Invoke and pytest find `scripts` from the repository root.
-- **System site packages:** create `.venv` with `uv venv --system-site-packages`. The validation imports `cloudinit` and `yaml` from apt's `cloud-init` and `python3-yaml`, so it uses the same cloud-init as Ubuntu 26.04.
-- **Pyright:** [`pyrightconfig.json`](../pyrightconfig.json) sets `standard` mode for Python 3.14, and names no venv. Under `uv run`, Pyright uses the venv's Python with its system site packages. With `venvPath` set it couldn't import `cloudinit` (observed).
-- **Ruff:** `[tool.ruff]` in `pyproject.toml`, with a 120-character line.
-- **Dependencies:** every Python dependency is in the `dev` group. `exclude-newer = "7 days"` resolves only versions at least 7 days old. `uv.lock` is ignored by Git.
-- **Shell:** shfmt reads its options from [`.editorconfig`](../.editorconfig).
+- **Python:** the system Python 3.14. [`pyproject.toml`](../pyproject.toml) sets `python-preference = "only-system"` and `python-downloads = "never"`, so uv never fetches its own Python. `package = false`: nothing is installed, and Invoke finds `pkg` from the repository root.
+- **System site packages:** `make venv` creates `.venv` with `uv venv --system-site-packages`, from the first of `/usr/libexec/platform-python`, `/usr/bin/python3` and `/usr/bin/python`. `pkg/` imports `cloudinit`, `jsonschema` and `yaml` from the system's `cloud-init` package and its dependencies, so the build uses the same cloud-init as the distro. uv has no setting or environment variable for this, so the flag only takes effect when the venv is created, and `make venv` does nothing when `.venv` exists.
+- **Pyright:** [`pyrightconfig.json`](../pyrightconfig.json) sets `standard` mode for Python 3.14, adds `pkg` to `extraPaths` and names no venv. Under `uv run`, Pyright uses the venv's Python with its system site packages.
+- **Ruff:** `[tool.ruff]` in `pyproject.toml`, with a 120-character line. `src = [".", "pkg"]` makes it sort `pkg`'s modules as first-party imports.
+- **pytest:** collects from `tests/`, with `pkg` on the import path. There are no unit tests yet.
+- **Dependencies:** every dependency that isn't from the system is in the `dev` group. `exclude-newer = "7 days"` resolves only versions at least 7 days old. `uv.lock` is ignored by Git.
+- **Shell:** shfmt reads its options from [`.editorconfig`](../.editorconfig), which also keeps the `Makefile` indented with tabs.
 
 ## Decisions
 
-- **Real cloud-init parts, joined by cloud-init.** Each fragment is a cloud-config that cloud-init itself merges, rather than a template a custom builder fills in. `make-mime` is cloud-init's own tool for this. The manifests only choose which fragments to join.
-- **Validate the merge as cloud-init does it.** The validation calls cloud-init's part handlers rather than merging the YAML itself, so it can't disagree with an instance about the result.
-- **Thin tasks.** The logic is in `scripts/`, where it can be tested without Invoke.
+- **Real cloud-init parts, joined by cloud-init.** Each fragment is a cloud-config that cloud-init itself merges, rather than a template a custom builder fills in. The manifests only choose which fragments to join, and in what order.
+- **cloud-init's Python package over its command line.** Calling `create_mime_message` gives the same output as `cloud-init devel make-mime` (observed, apart from the boundary) without running a command for each manifest or staging the fragments in a folder to name the parts.
+- **Order from the manifest, not file names.** The manifest's keys set the order, so a fragment's name only says what it does, and the same fragment can sit at a different place in another manifest.
+- **Paths resolved when a manifest loads.** `Manifest.from_file` turns names into paths, so `Manifest.build` and `pkg/fragments.py` only read the paths they're given.
+- **Thin tasks.** The logic is in `pkg/`, where it can be used without Invoke.
 
 ## Limits
 
 - A fragment can't share a variable or macro with another, so shared code, such as `user` and `workspace`, is repeated.
-- The validation doesn't prove a real first boot. The end-to-end tests in [Releases](releases.md#end-to-end-tests) install an instance on Windows runners.
-- Each case runs cloud-init's merge and `cloud-init schema` for every distro, so `invoke validate` takes longer with each distro added: about 10 seconds for one (observed).
+- Nothing checks the user-data until validation is rebuilt, and the end-to-end tests in [Releases](releases.md) haven't been brought up to date with this build.
+- The filter matches the manifest's file name, not its `name`, because it picks the files before any is read. A broken manifest, or two that clash, stop the build only when the filter keeps them.
+- A clash is reported without naming the files, which is enough for a handful of manifests.
+- The build doesn't empty `dist/` first, so a manifest that's been renamed or removed leaves its old user-data there.
 
 ## Sources
 

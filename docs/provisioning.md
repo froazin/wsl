@@ -1,6 +1,6 @@
 # Provisioning
 
-How the cloud-init fragments in [`src/fragments/`](../src/fragments/) build a WSL instance from scratch on its first boot, as the Ubuntu 26.04 distro's [manifest](../src/distros/Ubuntu-26.04/manifest.json) lists them. Which distro gets which fragments is in [Distros and manifests](distros.md). It's for engineers changing the user-data. The meta-data keys have their own doc, [WSL meta-data](meta-data.md), and how the parts are joined and checked is in [Build and validation](build.md).
+How the cloud-init fragments in [`src/fragments/`](../src/fragments/) build a WSL instance from scratch on its first boot, as the Ubuntu 26.04 distro's [manifest](../src/manifests/ubuntu-26.04.yml) lists them. Which distro gets which fragments is in [Distros and manifests](distros.md). It's for engineers changing the user-data. The meta-data keys have their own doc, [WSL meta-data](meta-data.md), and how the parts are joined is in [Build](build.md).
 
 ## Contents
 
@@ -33,12 +33,12 @@ This flowchart shows how the files reach the instance:
 flowchart LR
     accTitle: How the WSL files reach the instance
     accDescr: The build joins the fragments a distro's manifest lists into one MIME user-data, and a release publishes it. The user downloads it into their Windows profile, writes the meta-data beside it from the README's example and can add the optional .wslconfig, which WSL reads. cloud-init's WSL datasource reads the user-data and meta-data, renders each Jinja part, merges the parts and runs the cloud-config, which runs install.sh as the user and as root.
-    parts["src/fragments/ and the distro's manifest"] -->|"invoke build, make-mime"| release["GitHub release"]
+    parts["src/fragments/ and the distro's manifest"] -->|"make build"| release["GitHub release"]
     release -->|"user-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
     example["README meta-data example"] -->|"copied to .cloud-init and filled in"| ds
     wslconfig["optional .wslconfig"] -->|"in the Windows profile"| vm["WSL 2 virtual machine"]
     ds -->|"each part, with ds.meta_data"| jinja["Jinja render"]
-    jinja -->|"parts merged in name order"| modules["cloud-init modules"]
+    jinja -->|"parts merged in the manifest's order"| modules["cloud-init modules"]
     modules -->|"runuser -l"| install["dotfiles src/install.sh"]
     vm -->|hosts| modules
 ```
@@ -53,9 +53,9 @@ cloud-init runs once, on first boot, and Ubuntu's out-of-box experience (OOBE), 
 
 ### Parts and rendering
 
-The user-data is one part per fragment, and one fragment per feature, such as `40-podman.user-data`, each a cloud-config. cloud-init renders each part that starts with `## template: jinja` on its own, reading the meta-data from `ds.meta_data`, then merges the parts in name order. Every part's `merge_how` appends its lists to the earlier parts', so `packages` and `write_files` hold every part's entries and `runcmd` runs in the order of the file names. [Build and validation](build.md#how-the-build-works) covers the parts' rules.
+The user-data is one part per fragment, and one fragment per feature, such as `podman.user-data`, each a cloud-config. cloud-init renders each part that starts with `## template: jinja` on its own, reading the meta-data from `ds.meta_data`, then merges the parts in the order the manifest lists them. Every part's `merge_how` appends its lists to the earlier parts', so `packages` and `write_files` hold every part's entries and `runcmd` runs in the manifest's order. [Build](build.md#how-the-build-works) covers the parts' rules.
 
-A fragment sets every variable it uses, such as `user`, and normalises and validates the keys it reads, as [WSL meta-data](meta-data.md) describes. `90-development` and `99-dotfiles` build paths with the `workspace` macro, which turns a clone URL into `workspaces/<host>/<owner>/<repo>`, so the dotfiles' clone lands in `~/workspaces/github.com/froazin/dotfiles`.
+A fragment sets every variable it uses, such as `user`, and normalises and validates the keys it reads, as [WSL meta-data](meta-data.md) describes. `development` and `dotfiles` build paths with the `workspace` macro, which turns a clone URL into `workspaces/<host>/<owner>/<repo>`, so the dotfiles' clone lands in `~/workspaces/github.com/froazin/dotfiles`.
 
 Jinja runs with `trim_blocks` on and `lstrip_blocks` off, so every `{% %}` and `{# #}` tag sits at column 0. An indented tag would leave its indentation behind and break the YAML.
 
@@ -85,40 +85,40 @@ Anything that needs a package, or a group a package creates such as `libvirt`, i
 
 | Path | Why |
 | --- | --- |
-| `/etc/wsl.conf` (`30-wsl`) | Turns on systemd, remounts `/` shared at boot and keeps the Windows `PATH` out (`appendWindowsPath=false`). Has no `[user]` section, because the OOBE writes `default=` |
-| `/etc/apt/preferences.d/github-cli` (`95-github-cli`) | Pins `gh` from `cli.github.com` at 600, above the 510 Ubuntu Pro gives ESM |
-| `/etc/adduser.conf` (appended) (`60-users`) | Adds a user the OOBE creates to `users`, `kvm` and `libvirt` |
-| `/etc/containers/nodocker` (`40-podman`) | Stops `podman-docker`'s `docker` wrapper printing its "Emulate Docker CLI using podman" notice |
-| `/etc/profile.d/browser.sh`, `/etc/environment.d/90-browser.conf` (`10-windows`) | Set `BROWSER=/usr/local/bin/start` |
-| `/etc/systemd/system/disable-swap.service` (`30-wsl`) | Runs `swapoff -a`, because WSL attaches swap before systemd starts: by default, and even with `swap=0` in `.wslconfig` |
-| `/etc/systemd/system/make-root-rshared.service` (`40-podman`) | Runs `mount --make-rshared /` before `sysinit.target`, backing up the `[boot]` command podman needs |
-| `/etc/systemd/user/podman.socket.d/10-not-root.conf` (`40-podman`) | `ConditionUser=!root`, so root's user manager doesn't start a second rootful podman API |
-| `/usr/local/bin/start` (`10-windows`) | Opens a URL or file with its Windows handler through PowerShell `Start-Process`. Used as `$BROWSER` |
+| `/etc/wsl.conf` (`wsl`) | Turns on systemd, remounts `/` shared at boot and keeps the Windows `PATH` out (`appendWindowsPath=false`). Has no `[user]` section, because the OOBE writes `default=` |
+| `/etc/apt/preferences.d/github-cli` (`github-cli`) | Pins `gh` from `cli.github.com` at 600, above the 510 Ubuntu Pro gives ESM |
+| `/etc/adduser.conf` (appended) (`users`) | Adds a user the OOBE creates to `users`, `kvm` and `libvirt` |
+| `/etc/containers/nodocker` (`podman`) | Stops `podman-docker`'s `docker` wrapper printing its "Emulate Docker CLI using podman" notice |
+| `/etc/profile.d/browser.sh`, `/etc/environment.d/90-browser.conf` (`windows`) | Set `BROWSER=/usr/local/bin/start` |
+| `/etc/systemd/system/disable-swap.service` (`wsl`) | Runs `swapoff -a`, because WSL attaches swap before systemd starts: by default, and even with `swap=0` in `.wslconfig` |
+| `/etc/systemd/system/make-root-rshared.service` (`podman`) | Runs `mount --make-rshared /` before `sysinit.target`, backing up the `[boot]` command podman needs |
+| `/etc/systemd/user/podman.socket.d/10-not-root.conf` (`podman`) | `ConditionUser=!root`, so root's user manager doesn't start a second rootful podman API |
+| `/usr/local/bin/start` (`windows`) | Opens a URL or file with its Windows handler through PowerShell `Start-Process`. Used as `$BROWSER` |
 
-With a username, `80-git` writes two deferred files into the user's home: `~/.gitconfig` and `~/.config/git/allowed_signers`. [WSL meta-data](meta-data.md) says when each is written.
+With a username, `git` writes two deferred files into the user's home: `~/.gitconfig` and `~/.config/git/allowed_signers`. [WSL meta-data](meta-data.md) says when each is written.
 
 ### runcmd
 
-cloud-init writes `runcmd` out as one `#!/bin/sh` script with no `set -e`, so each entry runs whatever the others return. The entries run in fragment order, and the order still matters. This flowchart shows it, with the fragment each entry comes from:
+cloud-init writes `runcmd` out as one `#!/bin/sh` script with no `set -e`, so each entry runs whatever the others return. The entries run in the order the manifest lists the fragments, and the order still matters. This flowchart shows it, with the fragment each entry comes from:
 
 ```mermaid
 flowchart TD
     accTitle: runcmd order
-    accDescr: runcmd runs the fragments' entries in name order. It links the Windows tools and fd, enables the system units and the global podman socket, sets up libvirt, sets zsh for new users and root, then either makes the user's workspaces, installs their tools and extensions and runs install.sh for the user and root, or runs install.sh for root from a temporary clone.
-    links["10, 20: ln -sfn Windows tools and fd"] -->|then| units["30, 40: daemon-reload, enable --now disable-swap, make-root-rshared"]
-    units -->|then| global["40: systemctl --global enable podman.socket, enable --now podman.socket"]
-    global -->|then| virsh["50: virsh net-autostart default, usermod -aG libvirt"]
-    virsh -->|then| shells["60: DSHELL and usermod -s for root"]
-    shells -->|username set| prep["80: mkdir workspaces"]
-    prep -->|runuser -l| tools["90: uv, pulumi, biome, nvm, claude, ant"]
-    tools -->|runuser -l| ext["92, 95: code --install-extension, gh extension install"]
-    ext -->|runuser -l| userinstall["99: install.sh as the user"]
-    userinstall -->|runuser -l root| rootinstall["99: install.sh as root"]
-    shells -->|no username| tmp["99: install.sh as root from a mktemp clone"]
+    accDescr: runcmd runs the fragments' entries in the manifest's order. It links the Windows tools and fd, enables the system units and the global podman socket, sets up libvirt, sets zsh for new users and root, then either makes the user's workspaces, installs their tools and extensions and runs install.sh for the user and root, or runs install.sh for root from a temporary clone.
+    links["windows, utilities: ln -sfn Windows tools and fd"] -->|then| units["wsl, podman: daemon-reload, enable --now disable-swap, make-root-rshared"]
+    units -->|then| global["podman: systemctl --global enable podman.socket, enable --now podman.socket"]
+    global -->|then| virsh["virtualisation: virsh net-autostart default, usermod -aG libvirt"]
+    virsh -->|then| shells["users: DSHELL and usermod -s for root"]
+    shells -->|username set| prep["git: mkdir workspaces"]
+    prep -->|runuser -l| tools["development: uv, pulumi, biome, nvm, claude, ant"]
+    tools -->|runuser -l| ext["vscode, github-cli: code --install-extension, gh extension install"]
+    ext -->|runuser -l| userinstall["dotfiles: install.sh as the user"]
+    userinstall -->|runuser -l root| rootinstall["dotfiles: install.sh as root"]
+    shells -->|no username| tmp["dotfiles: install.sh as root from a mktemp clone"]
 ```
 
 - Ubuntu installs `fd-find`'s command as `fdfind`, because another package owns the name `fd`. `runcmd` links `/usr/local/bin/fd` to `/usr/bin/fdfind`, which apt has installed by then.
-- The global `podman.socket` enable, in `40-podman`, comes before the first `runuser -l`, in `90-development`. That entry starts the user's systemd manager, which reads global wants only when it starts.
+- The global `podman.socket` enable, in `podman`, comes before the first `runuser -l`, in `development`. That entry starts the user's systemd manager, which reads global wants only when it starts.
 - `DSHELL=/usr/bin/zsh` and root's `usermod -s` run only when `/usr/bin/zsh` is executable, so a failed package install can't leave a login shell that doesn't exist. Root's shell is set before root's install, so the zsh module's `$SHELL` check sees zsh and doesn't warn.
 - The user's install puts `~/.local/bin` and `~/.pulumi/bin` on `PATH` itself, because `~/.zshenv` doesn't exist yet. Without that, `install.sh` can't find `claude` and skips the claude module.
 - Root's install uses the absolute path `/home/<user>/workspaces/...`, because `~` under `runuser -l root` is `/root`.
@@ -141,14 +141,14 @@ flowchart TD
 
 - The repository is public. The fragments hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only account name in it is the dotfiles' repository URL.
 - Only validated meta-data values reach shell commands. `username` is the exception: it's trusted as written (see [WSL meta-data](meta-data.md#limits)).
-- The GitHub CLI apt key is embedded in `95-github-cli`, with its fingerprint in a comment, rather than fetched at boot.
+- The GitHub CLI apt key is embedded in `github-cli`, with its fingerprint in a comment, rather than fetched at boot.
 - `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user. Their integrity rests on those hosts and TLS.
 - `/usr/local/bin/start` passes its target to PowerShell in an environment variable through `WSLENV`, never in the command, so the target is never parsed as code.
 - The user named by `username` gets passwordless sudo, and their password is locked.
 
 ## Decisions
 
-- **One fragment per feature.** cloud-init's own MIME parts and merging join them, so each feature reads on its own, and each distro's manifest picks the features it gets. See [Build and validation](build.md#decisions).
+- **One fragment per feature.** cloud-init's own MIME parts and merging join them, so each feature reads on its own, and each distro's manifest picks the features it gets. See [Build](build.md#decisions).
 - **Native cloud-init modules over custom scripts.** Files, users, apt sources and packages use their modules. `runcmd` holds only what has no module.
 - **Installers run as the user** with `runuser -l`, so the tools live in the user's home and update themselves. nvm is cloned and checked out at its newest tag, and `ant` is unpacked with `tar -m` so zsh notices the new binary and regenerates its completion.
 - **`systemctl --global` instead of `--user`.** `runcmd` has no user bus. The `ConditionUser=!root` drop-in keeps the global enable out of root's user manager, which `sudo su` starts.
@@ -159,9 +159,9 @@ flowchart TD
 
 ## Validation
 
-`uv run invoke validate` builds the user-data, merges it for each mock meta-data case as cloud-init does at boot and checks the result. [Build and validation](build.md#validation) says how, and the [validate-user-data skill](../.claude/skills/validate-user-data/SKILL.md) lists the cases. Add a case for every new meta-data key or conditional, including the key being unset.
+Nothing checks the merged user-data yet: the mock meta-data cases went with the old build, and will be rebuilt for the YAML manifests, as [Build](build.md#validation) says. `make build` only checks each manifest against its schema.
 
-It doesn't prove a real first boot. Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
+Even then, a mock check doesn't prove a real first boot. Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
 
 ## Limits
 

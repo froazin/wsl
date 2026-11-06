@@ -111,7 +111,7 @@ gh_extensions:
 
 ### Reading what it runs
 
-The user-data is a MIME multipart file of cloud-config parts, and each part is base64-encoded, so it isn't readable as text. Read it in [`src/`](src/) at the release's tag instead, with the tag, such as `v1.2.3`, from the release's page. The distro's manifest, such as `https://github.com/froazin/wsl/blob/<tag>/src/distros/Ubuntu-26.04/manifest.json`, lists its fragments, one per part, in the order they run. Each is in `src/fragments/`, or in the distro's own folder beside its manifest.
+The user-data is a MIME multipart file of cloud-config parts, and each part is base64-encoded, so it isn't readable as text. Read it in [`src/`](src/) at the release's tag instead, with the tag, such as `v1.2.3`, from the release's page. The distro's manifest, such as `https://github.com/froazin/wsl/blob/<tag>/src/manifests/ubuntu-26.04.yml`, lists its fragments, one per part, in the order they run. Each is in `src/fragments/`.
 
 ### The .wslconfig example
 
@@ -175,7 +175,7 @@ PATH="$HOME/.local/bin:$HOME/.pulumi/bin:$PATH" sh ~/workspaces/github.com/froaz
 
 ### Testing a change
 
-Build the user-data with `uv run invoke build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy the distro's user-data, such as `dist/Ubuntu-26.04.user-data`, as `ci-test.user-data`, and write `ci-test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
+Build the user-data with `make build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy the distro's user-data, such as `dist/Ubuntu-26.04.user-data`, as `ci-test.user-data`, and write `ci-test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
 
 ```powershell
 wsl --install Ubuntu-26.04 --name ci-test
@@ -186,21 +186,21 @@ WSL instances share one cgroup tree, so stop your main instance first if you're 
 
 ### Making it your own
 
-Fork the repository and change the fragments in [`src/fragments/`](src/fragments/), then build your own files with `uv run invoke build`, which writes them to `dist/`. To drop a feature, delete its fragment and take it out of every distro's [manifest](src/distros/Ubuntu-26.04/manifest.json): `invoke validate` fails on a shared fragment that no manifest lists. [Distros and manifests](docs/distros.md) says how to add a distro. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`99-dotfiles.user-data`](src/fragments/99-dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
+Fork the repository and change the fragments in [`src/fragments/`](src/fragments/), then build your own files with `make build`, which writes them to `dist/`. To drop a feature, take its fragment out of every distro's [manifest](src/manifests/ubuntu-26.04.yml), then delete it. [Distros and manifests](docs/distros.md) says how to add a distro. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`dotfiles.user-data`](src/fragments/dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
 
 ## How it works
 
-The config is plain cloud-init, written as one fragment per feature and shared by every distro. Each distro's manifest lists the fragments it gets, and `invoke build` joins them into one user-data file per distro, because WSL reads only one, and the release workflow publishes them. cloud-init's WSL datasource reads the files on the instance's first boot:
+The config is plain cloud-init, written as one fragment per feature and shared by every distro. Each distro's manifest lists the fragments it gets, in order, and `make build` joins them into one user-data file per distro, because WSL reads only one, and the release workflow publishes them. cloud-init's WSL datasource reads the files on the instance's first boot:
 
 ```mermaid
 flowchart LR
     accTitle: How the files reach the instance
-    accDescr: invoke build joins the fragments each distro's manifest lists into one MIME user-data for the distro, and the release workflow publishes it. You download it into your Windows profile, and write the meta-data beside it from the README's example. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in name order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
-    parts["src/fragments/"] -->|"listed in a manifest"| manifest["src/distros/Ubuntu-26.04/manifest.json"]
-    manifest -->|"invoke build"| release["GitHub release"]
+    accDescr: make build joins the fragments each distro's manifest lists into one MIME user-data for the distro, and the release workflow publishes it. You download it into your Windows profile, and write the meta-data beside it from the README's example. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in the manifest's order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
+    parts["src/fragments/"] -->|"listed in a manifest"| manifest["src/manifests/ubuntu-26.04.yml"]
+    manifest -->|"make build"| release["GitHub release"]
     release -->|"user-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
     example["The README's meta-data example"] -->|"copied to .cloud-init and filled in"| ds
-    ds -->|"renders each part, merges them in name order"| modules["cloud-init modules"]
+    ds -->|"renders each part, merges them in order"| modules["cloud-init modules"]
     wslconfig["optional .wslconfig"] -->|"read by WSL"| vm["WSL 2 virtual machine"]
     vm -->|hosts| modules
     modules -->|"clones and runs install.sh"| dotfiles["froazin/dotfiles"]
@@ -211,7 +211,7 @@ The design docs explain each part, for anyone changing it:
 - [Provisioning](docs/provisioning.md): how the user-data's fragments, stages and `runcmd` work.
 - [Distros and manifests](docs/distros.md): how each distro's manifest picks its fragments, and how to add a distro.
 - [WSL meta-data](docs/meta-data.md): how each meta-data key is validated and where it ends up.
-- [Build and validation](docs/build.md): how `tasks.py` and `scripts/` build the fragments into `dist/` and check the result.
+- [Build](docs/build.md): how the `Makefile`, `tasks.py` and `pkg/` build the fragments into `dist/`.
 - [CI](docs/ci.md): the checks and the code review that run on each pull request.
 - [Releases](docs/releases.md): how `main` is released, with the end-to-end tests on Windows runners.
 

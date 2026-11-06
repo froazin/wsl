@@ -1,8 +1,13 @@
 ---
 name: validate-user-data
-description: Build and validate the WSL cloud-init user-data (the fragments in src/fragments/ and the distros in src/distros/) against mock meta-data. Use after any change to a fragment, a distro's manifest.json, schemas/distro-manifest.schema.json, the meta-data example in README.md or scripts/build/, before saying a change works.
+description: STALE, don't use. Describes the old invoke validate task, which no longer exists. Validation hasn't been rebuilt for the YAML manifests yet.
 allowed-tools: Bash(uv run invoke validate) Bash(uv run invoke validate *) Bash(uv run invoke build)
 ---
+
+> [!WARNING]
+> **Stale: stop here and don't follow this skill.** It describes the old `invoke validate` task, `scripts/build/` and
+> `src/distros/`, which no longer exist. Validation hasn't been rebuilt for the YAML manifests in `src/manifests/` yet.
+> Until it is, build with `make build` and tell the user that the user-data couldn't be validated.
 
 # Validate the WSL user-data
 

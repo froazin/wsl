@@ -17,7 +17,7 @@ How the WSL user-data reads each key of the meta-data, which users write from th
 
 The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\<distro>.meta-data`, such as `Ubuntu-26.04.meta-data`, by copying the README's example and filling it in. Every distro reads the same keys, so one example serves them all. Releases don't ship it. The example leaves the identifying values empty, and its comments describe each key. cloud-init's WSL datasource reads the file.
 
-The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. `invoke validate` renders the user-data with it in the `readme-example` case, and the [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, so both find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in and `invoke validate` checks, and add every new key to the example.
+The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. The [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, and find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in, and add every new key to the example. The old validation also rendered the user-data with the example and checked those lines. That will be rebuilt, as [Build](build.md#validation) says.
 
 Each key is read in the fragments in [`src/fragments/`](../src/fragments/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A distro's own fragment reads a key the same way, and a new key goes into the README's example for every distro.
 
@@ -44,12 +44,12 @@ Every key apart from `instance-id` needs `username`: without one, the user-data 
 | Key | Expected type | Value in the example | Read in | Ends up in |
 | --- | --- | --- | --- | --- |
 | `instance-id` | String | `wsl` | None | Read by the datasource, which needs it. No fragment uses it |
-| `username` | String | Empty | Every fragment from `50-virtualisation` on | `users:`, every `runuser` command and the home paths |
-| `git_name`, `git_email` | String | Empty | `80-git` | `[user]` in `~/.gitconfig` |
-| `git_signingkey` | String | Empty | `80-git` | `user.signingkey`, `gpg.format`, `commit.gpgsign`, `gpg.ssh.allowedSignersFile` and `allowed_signers` |
-| `git_ssh_program` | String | Empty | `80-git` | `gpg.ssh.program` |
-| `vscode_extensions` | List or string | `Anthropic.claude-code`, `ms-python.python` | `92-vscode` | One `code --install-extension` per ID |
-| `gh_extensions` | List or string | `https://github.com/nektos/gh-act` | `95-github-cli` | One `gh extension install` per ID |
+| `username` | String | Empty | Every fragment from `virtualisation` on | `users:`, every `runuser` command and the home paths |
+| `git_name`, `git_email` | String | Empty | `git` | `[user]` in `~/.gitconfig` |
+| `git_signingkey` | String | Empty | `git` | `user.signingkey`, `gpg.format`, `commit.gpgsign`, `gpg.ssh.allowedSignersFile` and `allowed_signers` |
+| `git_ssh_program` | String | Empty | `git` | `gpg.ssh.program` |
+| `vscode_extensions` | List or string | `Anthropic.claude-code`, `ms-python.python` | `vscode` | One `code --install-extension` per ID |
+| `gh_extensions` | List or string | `https://github.com/nektos/gh-act` | `github-cli` | One `gh extension install` per ID |
 
 ## How each key is handled
 
