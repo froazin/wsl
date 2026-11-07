@@ -1,7 +1,7 @@
 ---
 - name: Build the greeting
   ansible.builtin.set_fact:
-    hello_world_greeting: "{{ hello_world_name | greeting }}"
+    hello_world_greeting: "{{ hello_world_name | froazin.wsl.greeting }}"
 
 - name: Say hello
   ansible.builtin.debug:
