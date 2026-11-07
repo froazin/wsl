@@ -1,0 +1,6 @@
+---
+- name: Say hello
+  hosts: all
+  gather_facts: false
+  roles:
+    - role: hello_world

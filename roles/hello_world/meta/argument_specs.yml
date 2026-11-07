@@ -1,0 +1,12 @@
+---
+argument_specs:
+  main:
+    short_description: Say hello.
+    description:
+      - Builds a greeting for O(hello_world_name) and prints it.
+      - Sets the C(hello_world_greeting) fact to the greeting.
+    options:
+      hello_world_name:
+        description: Who to greet.
+        type: str
+        default: world

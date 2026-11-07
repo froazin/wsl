@@ -77,3 +77,15 @@ cython_debug/
 
 # Ruff cache
 .ruff_cache/
+
+# Ansible
+.ansible/
+*.retry
+tests/output/
+
+# Collections installed from requirements.yml. froazin/wsl is a tracked link
+# back to the repository root.
+/collections/ansible_collections/*
+!/collections/ansible_collections/froazin/
+/collections/ansible_collections/froazin/*
+!/collections/ansible_collections/froazin/wsl

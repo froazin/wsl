@@ -1,0 +1,21 @@
+---
+DOCUMENTATION:
+  name: greeting
+  short_description: Build a greeting for a name
+  description:
+    - Returns C(Hello, <name>!) for the name it's given, with surrounding whitespace removed.
+  options:
+    _input:
+      description: The name to greet.
+      type: str
+      required: true
+
+EXAMPLES: |
+  - name: Greet the world
+    ansible.builtin.debug:
+      msg: "{{ 'world' | greeting }}"
+
+RETURN:
+  _value:
+    description: The greeting.
+    type: str

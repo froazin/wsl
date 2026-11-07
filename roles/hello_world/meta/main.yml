@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  author: froazin
+  description: Says hello, to show the playbooks, roles and tests working end to end.
+  license: MIT
+  min_ansible_version: "2.22"
+  platforms:
+    # The project targets Fedora 45, but ansible-lint's list of Fedora
+    # versions stops at 44.
+    - name: Fedora
+      versions:
+        - all
+dependencies: []

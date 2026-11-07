@@ -1,0 +1,12 @@
+---
+profile: moderate
+
+exclude_paths:
+  - .ansible/
+  - .local/
+  - .venv/
+  - cloud-init/
+
+skip_list:
+  - galaxy[no-changelog]
+  - meta-runtime[unsupported-version]
