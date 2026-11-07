@@ -5,12 +5,6 @@
 		"*.meta-data": "jinja-yaml",
 		"*.wslconfig": "jinja-toml"
 	},
-	"files.watcherExclude": {
-		"**/collections/ansible_collections/**": true
-	},
-	"search.exclude": {
-		"**/collections/ansible_collections/**": true
-	},
 	"yaml.schemas": {
 		"./cloud-init/schemas/manifest.schema.json": "/cloud-init/manifests/*.y*ml"
 	}

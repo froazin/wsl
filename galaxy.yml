@@ -1,7 +1,27 @@
 ---
 namespace: froazin
+description: An Ansible collection for building and managing WSL images.
 name: wsl
 version: 0.0.1
 readme: README.md
 authors:
   - froazin
+
+dependencies:
+  containers.podman: ">=1.21.2,<2.0.0"
+
+build_ignore:
+  - ".*"
+  - __pycache__
+  - collections
+  - ansible.cfg
+  - inventory
+  - pyproject.toml
+  - pyrightconfig.json
+  - tasks.py
+  - uv.lock
+  - CLAUDE.md
+  - cloud-init
+  - dist
+  - .venv
+  - .tox
