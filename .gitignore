@@ -1,6 +1,4 @@
-# Based on https://github.com/github/gitignore/blob/main/Python.gitignore
-
-# Ignore dist
+# The built user-data, which make build writes
 dist/
 
 # Logs
@@ -17,63 +15,3 @@ logs
 # Claude Code
 **/settings.local.json
 .claude/worktrees
-
-# Python virtual environments
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Not a package, so no tooling environment tracks a lockfile
-uv.lock
-
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[codz]
-*$py.class
-*.so
-
-# Distribution / packaging
-# Anchored to the root, so folders such as features/src/<feature>/lib/ aren't ignored.
-.Python
-/build/
-/develop-eggs/
-/dist/
-/downloads/
-/eggs/
-.eggs/
-/lib/
-/lib64/
-/parts/
-/sdist/
-/var/
-/wheels/
-/share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-coverage.xml
-*.cover
-*.py.cover
-*.lcov
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-cython_debug/
-
-# Ruff cache
-.ruff_cache/

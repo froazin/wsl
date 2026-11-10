@@ -111,7 +111,7 @@ gh_extensions:
 
 ### Reading what it runs
 
-The user-data is a MIME multipart file of cloud-config parts, and each part is base64-encoded, so it isn't readable as text. Read it in [`src/`](src/) at the release's tag instead, with the tag, such as `v1.2.3`, from the release's page. The distro's manifest, such as `https://github.com/froazin/wsl/blob/<tag>/src/manifests/ubuntu-26.04.yml`, lists its fragments, one per part, in the order they run. Each is in `src/fragments/`.
+The user-data is a MIME multipart file of cloud-config parts, and each part is base64-encoded, so it isn't readable as text. Read it in [`src/`](src/) at the release's tag instead, with the tag, such as `v1.2.3`, from the release's page. The distro's manifest, such as `https://github.com/froazin/wsl/blob/<tag>/src/manifests/Ubuntu-26.04.json`, lists its fragments, one per part, in the order they run. Each is in `src/fragments/`.
 
 ### The .wslconfig example
 
@@ -185,7 +185,7 @@ WSL instances share one cgroup tree, so stop your main instance first if you're 
 
 ### Making it your own
 
-Fork the repository and change the fragments in [`src/fragments/`](src/fragments/), then build your own files with `make build`, which writes them to `dist/`. To drop a feature, take its fragment out of every distro's [manifest](src/manifests/ubuntu-26.04.yml), then delete it. [Distros and manifests](docs/distros.md) says how to add a distro. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`dotfiles.user-data`](src/fragments/dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
+Fork the repository and change the fragments in [`src/fragments/`](src/fragments/), then build your own files with `make build`, which writes them to `dist/`. To drop a feature, take its fragment out of every distro's [manifest](src/manifests/Ubuntu-26.04.json), then delete it. [Distros and manifests](docs/distros.md) says how to add a distro. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`dotfiles.user-data`](src/fragments/dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
 
 ## How it works
 
@@ -195,7 +195,7 @@ The config is plain cloud-init, written as one fragment per feature and shared b
 flowchart LR
     accTitle: How the files reach the instance
     accDescr: make build joins the fragments each distro's manifest lists into one MIME user-data for the distro, and the release workflow publishes it. You download it into your Windows profile, and write the meta-data beside it from the README's example. cloud-init's WSL datasource reads them, renders each part's Jinja with the meta-data, merges the parts in the manifest's order and runs the cloud-config, which installs the dotfiles for the user and for root. WSL reads the optional .wslconfig.
-    parts["src/fragments/"] -->|"listed in a manifest"| manifest["src/manifests/ubuntu-26.04.yml"]
+    parts["src/fragments/"] -->|"listed in a manifest"| manifest["src/manifests/Ubuntu-26.04.json"]
     manifest -->|"make build"| release["GitHub release"]
     release -->|"user-data, downloaded to .cloud-init"| ds["cloud-init WSL datasource"]
     example["The README's meta-data example"] -->|"copied to .cloud-init and filled in"| ds
@@ -210,7 +210,7 @@ The design docs explain each part, for anyone changing it:
 - [Provisioning](docs/provisioning.md): how the user-data's fragments, stages and `runcmd` work.
 - [Distros and manifests](docs/distros.md): how each distro's manifest picks its fragments, and how to add a distro.
 - [WSL meta-data](docs/meta-data.md): how each meta-data key is validated and where it ends up.
-- [Build](docs/build.md): how the `Makefile`, `tasks.py` and `pkg/` build the fragments into `dist/`.
+- [Build](docs/build.md): how the `Makefile` and `scripts/` build the fragments into `dist/` with jq and cloud-init.
 - [CI](docs/ci.md): the checks and the code review that run on each pull request.
 - [Releases](docs/releases.md): how `main` is released, with the end-to-end tests on Windows runners.
 

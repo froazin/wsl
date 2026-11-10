@@ -18,32 +18,26 @@ You're free to use the config as it is, or to fork the repository and change you
 
 ## Set up
 
-Work on Ubuntu 26.04, or in a WSL instance built from this config, with the system Python 3.14 and [uv](https://docs.astral.sh/uv/). Install the tools from apt, then set up the virtual environment with `make sync`. It creates `.venv` with the system site packages, so the build can import apt's `cloud-init`, `jsonschema` and `yaml`, then installs the dev dependencies:
+Work on Ubuntu 26.04, or in a WSL instance built from this config, so the build uses the same cloud-init as the instance. Install the tools from apt:
 
 ```sh
-sudo apt-get install cloud-init make shellcheck shfmt
-make sync
+sudo apt-get install cloud-init jq make shellcheck shfmt
 ```
-
-uv only gives a venv the system site packages when it creates it, so `make venv` does nothing when `.venv` exists. To start again, delete `.venv` and run `make sync`.
 
 ## Checks
 
 Run these from the repository's root:
 
 ```sh
-uv run ruff check .
-uv run ruff format --check .
-uv run pyright
 make build
-uv run invoke version
-shellcheck .github/scripts/*.sh
+make version
+shellcheck scripts/*.sh .github/scripts/*.sh
 shfmt -d .
 ```
 
-- `make build` builds each manifest in `src/manifests/` into `dist/<name>.user-data`, and fails with the reason when a manifest doesn't match its schema or lists a fragment that doesn't exist. `make build <filter>` builds only the manifests whose file name contains the filter, such as `make build ubuntu`. Edit `src/`, never `dist/`.
+- `make build` builds each manifest in `src/manifests/` into `dist/<distro>.user-data`, and fails with the reason when a manifest breaks a rule in `scripts/manifest.jq` or lists a fragment that doesn't exist. It only rebuilds a user-data that's out of date. `make dist/<distro>.user-data` builds one, and `make clean` deletes `dist/`. Edit `src/`, never `dist/`.
 - There are no unit tests, and nothing validates the rendered user-data. [docs/build.md](docs/build.md#validation) says what `make build` does and doesn't check.
-- `uv run invoke version` prints the manifests' version, which the release workflow releases as `v<version>` when no tag has it yet. It fails when the manifests' versions differ.
+- `make version` prints the manifests' version, which the release workflow releases as `v<version>` when no tag has it yet. It fails when the manifests' versions differ.
 - shfmt reads its options from `.editorconfig`, so run it without formatting flags: any flag such as `-i` makes it ignore `.editorconfig`.
 
 To test a real first boot, install a throwaway instance as the README's [Testing a change](README.md#testing-a-change) describes.

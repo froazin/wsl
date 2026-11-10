@@ -20,8 +20,8 @@ The workflow runs on every push to `main`, with the same `paths` filter as [CI](
 ```mermaid
 flowchart LR
     accTitle: The jobs that release the config
-    accDescr: A push to main that changes more than docs starts the workflow. The build job builds the config and reads the manifests' version with invoke version. When no tag has that version yet, the e2e job installs an instance of each distro on Windows runners with the built files, with and without a user. When both pass, the release job creates the tag and the GitHub release with the files as assets.
-    push["Push to main"] -->|"not only docs"| build["build: make build, invoke version"]
+    accDescr: A push to main that changes more than docs starts the workflow. The build job builds the config and reads the manifests' version with make version. When no tag has that version yet, the e2e job installs an instance of each distro on Windows runners with the built files, with and without a user. When both pass, the release job creates the tag and the GitHub release with the files as assets.
+    push["Push to main"] -->|"not only docs"| build["build: make build, make version"]
     tags[("Tags on GitHub")] -->|"is vX.Y.Z taken?"| build
     build -->|"new version, dist/ as an artifact"| e2e["e2e: windows-2025, two cases per distro"]
     build -->|"version already tagged"| stop["Nothing to release"]
@@ -29,13 +29,13 @@ flowchart LR
     release -->|"tag vX.Y.Z and assets"| tags
 ```
 
-- **`build`** sets up the tools as the CI `checks` job does and runs `make build`. It lists the distros in `dist/` for the `e2e` matrix, then reads the version with `uv run invoke version`. It asks GitHub's API for a tag named `v<version>`. When there's none, a release is due, and it uploads `dist/` as the `dist` artifact. When there's one, it outputs no version, and the later jobs are skipped.
+- **`build`** sets up the tools as the CI `checks` job does and runs `make build`. It lists the distros in `dist/` for the `e2e` matrix, then reads the version with `make version`. It asks GitHub's API for a tag named `v<version>`. When there's none, a release is due, and it uploads `dist/` as the `dist` artifact. When there's one, it outputs no version, and the later jobs are skipped.
 - **`e2e`** runs only when a release is due. See [End-to-end tests](#end-to-end-tests).
 - **`release`** needs both, so a failed build or end-to-end test skips it. It checks it's the newest run with `gh run list`, then downloads the artifact and runs `gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --generate-notes`, adding `--prerelease` when the version has a pre-release part.
 
 ## How the version is decided
 
-The version is the `version` field in the manifests in [`src/manifests/`](../src/manifests/), such as `0.0.1`. Every distro is released together, under one tag, so every manifest has the same version. `invoke version` prints the version that `release_version()` in [`pkg/manifest.py`](../pkg/manifest.py) returns, and exits with status 1 when the manifests' versions differ. CI runs it on every PR, so the versions can't drift apart.
+The version is the `version` field in the manifests in [`src/manifests/`](../src/manifests/), such as `0.0.1`. Every distro is released together, under one tag, so every manifest has the same version. `make version` reads it from every manifest with jq, and prints it, or fails when the manifests' versions differ. CI runs it on every PR, so the versions can't drift apart.
 
 Bump the version in the pull request (PR) that changes what `make build` writes to `dist/`. That's usually a change to a fragment a manifest lists, or to the fragments a manifest lists. A change that leaves `dist/` as it was, such as one to docs, CI or the end-to-end scripts, doesn't bump it. A change to the tooling bumps it only when it changes what's built. Without a bump, the release workflow releases nothing, so the change doesn't reach users until a later PR bumps the version. The exception is a version that hasn't been released yet, such as after a failed end-to-end test: a later change goes out under it without another bump. The code review checks the bump, as [`REVIEW.md`](../REVIEW.md) says.
 
@@ -56,7 +56,7 @@ Which part to bump depends on the version the manifests have now:
 ## Tags and assets
 
 - GitHub creates the tag `vX.Y.Z` on the commit the run built, through `gh release create --target`. The release notes are GitHub's generated notes.
-- The assets are the files in `dist/`: a `<name>.user-data` for each manifest in `src/manifests/`, named after its `name`, today only `Ubuntu-26.04.user-data`. The README downloads one from `https://github.com/froazin/wsl/releases/latest/download/<name>.user-data`, which skips pre-releases.
+- The assets are the files in `dist/`: a `<distro>.user-data` for each manifest in `src/manifests/`, named after the manifest's file, today only `Ubuntu-26.04.user-data`. The README downloads one from `https://github.com/froazin/wsl/releases/latest/download/<distro>.user-data`, which skips pre-releases.
 - No meta-data is released. Users write their own from the README's [meta-data example](../README.md#the-meta-data-example).
 - The user-data's parts are base64 in the MIME file, so the README sends readers to the manifest and the fragments in `src/` at the release's tag to read them.
 

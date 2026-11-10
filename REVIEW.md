@@ -2,7 +2,7 @@
 
 What CI's Claude code review flags on pull requests (PRs) in this repository, at what severity and what it skips. Rules for all work are in `CLAUDE.md`, and a change that breaks one of them is a finding. This file adds only what's specific to reviews.
 
-Judge the config in `src/` as what ships: it's built into each release's files, which people download onto their own machines, where the user-data runs as root on an instance's first boot. Judge the tooling in the `Makefile`, `tasks.py` and `pkg/`, the end-to-end scripts and the workflows by whether they still build, check and release the config correctly, not by the standards of the config itself.
+Judge the config in `src/` as what ships: it's built into each release's files, which people download onto their own machines, where the user-data runs as root on an instance's first boot. Judge the tooling in the `Makefile` and `scripts/`, the end-to-end scripts and the workflows by whether they still build, check and release the config correctly, not by the standards of the config itself.
 
 ## What Important means here
 
@@ -32,7 +32,7 @@ Every comment must be resolved before the PR can merge, so report Nits sparingly
 
 ## Don't report
 
-- Anything Ruff, Pyright, `make build`, ShellCheck or shfmt reports. CI runs them before the review.
+- Anything `make build`, `make version`, ShellCheck or shfmt reports. CI runs them before the review.
 - The PR's title and description.
 - A limit that a design doc's Limits section records, unless the change makes it worse.
 - An issue that a resolved review thread on the PR already raises, whatever its replies say. Resolving a thread settles it.

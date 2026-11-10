@@ -1,6 +1,6 @@
 # CI
 
-How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull request (PR) before it merges: the lint, type check and build, and Claude's code review. It's for engineers changing the workflow or [`REVIEW.md`](../REVIEW.md). The end-to-end tests on Windows runners run on `main` before a release, as [Releases](releases.md) describes.
+How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull request (PR) before it merges: the build, the version check and the shell lint, and Claude's code review. It's for engineers changing the workflow or [`REVIEW.md`](../REVIEW.md). The end-to-end tests on Windows runners run on `main` before a release, as [Releases](releases.md) describes.
 
 ## Contents
 
@@ -20,8 +20,8 @@ How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull requ
 ```mermaid
 flowchart LR
     accTitle: The jobs that run on a pull request
-    accDescr: A pull request that changes more than docs starts the workflow. The checks job lints and type-checks the tooling, builds the config and lints the shell scripts. When the checks pass, the code-review job runs Claude, which comments on the pull request.
-    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: Ruff, Pyright, make build, invoke version, ShellCheck, shfmt"]
+    accDescr: A pull request that changes more than docs starts the workflow. The checks job builds the config, checks the version and lints the shell scripts. When the checks pass, the code-review job runs Claude, which comments on the pull request.
+    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: make build, make version, ShellCheck, shfmt"]
     checks -->|passed| review["code-review: Claude"]
     review -->|comments| pr
 ```
@@ -31,9 +31,9 @@ flowchart LR
 
 ## Checks
 
-The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from the same release as the instance. It installs `cloud-init`, `make`, `shellcheck` and `shfmt` from apt, sets up uv and runs `make sync`, which creates the venv on the runner's system Python with its system site packages (see [Build](build.md#tool-configuration)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): Ruff, `ruff format --check`, Pyright, `make build`, `uv run invoke version`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`.
+The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from the same release as the instance. It installs `cloud-init`, `jq`, `make`, `shellcheck` and `shfmt` from apt (see [Build](build.md#tools)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): `make build`, `make version`, ShellCheck on `scripts/*.sh` and `.github/scripts/*.sh`, and `shfmt -d .`.
 
-`make build` checks each manifest against its schema and that its fragments exist, and `invoke version` that every manifest has the same version. Nothing renders the user-data or runs `cloud-init schema` on it, so the code review checks those by reading, and the end-to-end tests catch what it misses before a release.
+`make build` checks each manifest against the rules in `scripts/manifest.jq` and that its fragments exist, and `make version` that every manifest has the same version. Nothing renders the user-data or runs `cloud-init schema` on it, so the code review checks those by reading, and the end-to-end tests catch what it misses before a release.
 
 ## Code review
 

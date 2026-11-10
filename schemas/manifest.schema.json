@@ -1,17 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Distro manifest",
-  "description": "One distro's user-data, in src/manifests/<distro>.yml: the WSL distribution it's for and the fragments it's built from.",
+  "description": "One distro's user-data, in src/manifests/<distro>.json: the release version and the fragments it's built from. The file's name is the WSL distribution's name, such as Ubuntu-26.04, which is also the default instance name from wsl --install, and the build writes dist/<distro>.user-data. The WSL datasource reads that user-data only for an instance with that name.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["name", "version", "description", "fragments"],
+  "required": ["version", "description", "fragments"],
   "properties": {
-    "name": {
-      "description": "The WSL distribution's name, which is also the default instance name from wsl --install. The WSL datasource reads <name>.user-data only for an instance with this name.",
-      "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-      "examples": ["Ubuntu-26.04"]
-    },
     "version": {
       "description": "The version of the release the distro's user-data is published in, in Semantic Versioning 2.0.0 without a v prefix. Every manifest has the same version. Bump it in every change that changes what's built into dist/.",
       "type": "string",
@@ -24,17 +18,15 @@
       "minLength": 1
     },
     "fragments": {
-      "description": "Every fragment in the distro's user-data, keyed by position. cloud-init merges them in ascending order of their keys, which can have gaps. Each value is the name of a file in src/fragments/ without .user-data, with no number in front: the key sets the order. List each fragment once: the schema can't check that values are unique.",
-      "type": "object",
-      "minProperties": 1,
-      "propertyNames": {
-        "pattern": "^(0|[1-9][0-9]*)$"
-      },
-      "additionalProperties": {
+      "description": "Every fragment in the distro's user-data, in the order cloud-init merges them. Each is the name of a file in src/fragments/ without .user-data. List each fragment once.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
       },
-      "examples": [{ "0": "base", "1": "windows", "2": "utilities" }]
+      "examples": [["base", "windows", "utilities"]]
     }
   }
 }

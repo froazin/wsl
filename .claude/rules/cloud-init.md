@@ -6,10 +6,10 @@ paths:
 # WSL cloud-init (`src/`)
 
 The user-data is written as cloud-config fragments, all in `fragments/`.
-`manifests/<distro>.yml` names a distro, gives its version and lists every
-fragment in its user-data, keyed by its place in the merge. `make build`
-joins each manifest's fragments with cloud-init's `create_mime_message` into
-`dist/<name>.user-data`, a MIME multipart file with one part per fragment.
+`manifests/<distro>.json`, named after a distro, gives its version and lists
+every fragment in its user-data, in the order they merge. `make build` joins
+each manifest's fragments with `cloud-init devel make-mime` into
+`dist/<distro>.user-data`, a MIME multipart file with one part per fragment.
 Edit `src/`, never `dist/`. Each release publishes the files in `dist/`;
 users download one to `%USERPROFILE%\.cloud-init\` and write the meta-data
 beside it from the example in `README.md`, matching an instance named after
@@ -40,12 +40,12 @@ other files from the Windows side.
 - With `agent.yaml` present the datasource wraps a user-data that isn't
   plain cloud-config, such as the MIME file, in `#include`; the parts still
   render (inferred from the datasource's source).
-- cloud-init merges the parts in the order they're attached, which is the
-  manifest's key order. Every fragment keeps the shared `merge_how`
-  (`list(append)`, `dict(no_replace, recurse_list)`), or its lists replace
-  the earlier fragments' lists. A fragment's key sets where its `runcmd`
-  entries run; give a distro's own fragment a key between the shared ones
-  it runs among, so the order reads plainly.
+- cloud-init merges the parts in the order they're attached, which is
+  their order in the manifest's `fragments` list. Every fragment keeps the
+  shared `merge_how` (`list(append)`, `dict(no_replace, recurse_list)`), or
+  its lists replace the earlier fragments' lists. A fragment's place in the
+  list sets where its `runcmd` entries run, so list a distro's own fragment
+  between the shared ones it runs among.
 - A fragment that reads meta-data starts with `## template: jinja`.
   cloud-init renders each part on its own, so a fragment sets every variable
   and macro it uses, such as `user`; another fragment's are undefined, and an
@@ -105,6 +105,6 @@ example.
 
 Nothing renders the user-data or runs `cloud-init schema` on it before a
 release. After every change, run `make build`, which only checks each
-manifest against its schema and that its fragments exist, and tell the user
-that the user-data couldn't be validated. The end-to-end tests install it on
-a first boot only when a release is due.
+manifest with `scripts/manifest.jq` and that its fragments exist, and tell
+the user that the user-data couldn't be validated. The end-to-end tests
+install it on a first boot only when a release is due.

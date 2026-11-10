@@ -1,6 +1,6 @@
 # Provisioning
 
-How the cloud-init fragments in [`src/fragments/`](../src/fragments/) build a WSL instance from scratch on its first boot, as the Ubuntu 26.04 distro's [manifest](../src/manifests/ubuntu-26.04.yml) lists them. Which distro gets which fragments is in [Distros and manifests](distros.md). It's for engineers changing the user-data. The meta-data keys have their own doc, [WSL meta-data](meta-data.md), and how the parts are joined is in [Build](build.md).
+How the cloud-init fragments in [`src/fragments/`](../src/fragments/) build a WSL instance from scratch on its first boot, as the Ubuntu 26.04 distro's [manifest](../src/manifests/Ubuntu-26.04.json) lists them. Which distro gets which fragments is in [Distros and manifests](distros.md). It's for engineers changing the user-data. The meta-data keys have their own doc, [WSL meta-data](meta-data.md), and how the parts are joined is in [Build](build.md).
 
 ## Contents
 
@@ -159,7 +159,7 @@ flowchart TD
 
 ## Validation
 
-Nothing checks the merged user-data before a release, as [Build](build.md#validation) says. `make build` only checks each manifest against its schema and that the fragments it lists exist.
+Nothing checks the merged user-data before a release, as [Build](build.md#validation) says. `make build` only checks each manifest against the rules in `scripts/manifest.jq` and that the fragments it lists exist.
 
 Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
 

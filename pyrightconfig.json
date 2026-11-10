@@ -1,5 +1,0 @@
-{
-  "typeCheckingMode": "standard",
-  "exclude": ["**/__pycache__", "**/.*"],
-  "pythonVersion": "3.14"
-}

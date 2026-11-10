@@ -5,7 +5,10 @@
 		"*.meta-data": "jinja-yaml",
 		"*.wslconfig": "jinja-toml"
 	},
-	"yaml.schemas": {
-		"./schemas/manifest.schema.json": "/src/manifests/*.y*ml"
-	}
+	"json.schemas": [
+		{
+			"fileMatch": ["/src/manifests/*.json"],
+			"url": "./schemas/manifest.schema.json"
+		}
+	]
 }
