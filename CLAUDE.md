@@ -22,7 +22,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 | `REVIEW.md` | Instructions for CI's Claude code review: what counts as Important, the Nit cap, what to skip, what to always check and the evidence a finding needs |
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |
 | `.cz.toml` | commitizen's settings, which the release workflow works out each release's version with. See [docs/releases.md](docs/releases.md#how-the-version-is-decided) |
-| `.claude/settings.json` | The project's permissions for Claude Code: the build command |
+| `.claude/settings.json` | The project's permissions for Claude Code: the build command and the version preview, `cz bump --get-next --yes --allow-no-commit` |
 | `README.md` | The entry point for people who use the config, with the install steps, the meta-data example and the `.wslconfig` example. The end-to-end tests read the meta-data example after its `<!-- meta-data example -->` comment. Before you change the example, read [docs/meta-data.md](docs/meta-data.md) |
 | `CONTRIBUTING.md` | Who can open issues and pull requests, how changes land, the set-up and the checks to run |
 | `.editorconfig`, `.gitattributes`, `.gitignore` | shfmt and editor settings, LF line endings for every file and what Git ignores, such as `dist/` |
