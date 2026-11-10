@@ -1,6 +1,6 @@
 # Build
 
-How the [`Makefile`](../Makefile) joins the cloud-init fragments in [`src/`](../src/) into the user-data users download. It's for engineers adding, changing or reordering a fragment, or changing the `Makefile`. The commands to run are in [CONTRIBUTING.md](../CONTRIBUTING.md#checks), and what the user-data does on an instance is in [Provisioning](provisioning.md).
+How the [`Makefile`](../Makefile) joins the cloud-init fragments in [`src/`](../src/) into the user-data users download. It's for engineers adding, changing or reordering a fragment, or changing the `Makefile`. The commands to run are in the README's [Building it](../README.md#building-it), and what the user-data does on an instance is in [Provisioning](provisioning.md).
 
 ## Contents
 
@@ -73,7 +73,7 @@ Nothing validates the built user-data. `make build` only proves that make-mime c
 - **cloud-init:** from apt, on a current Ubuntu, like the instance. It doesn't need root.
 - **make and sed:** from apt. The `Makefile` uses GNU make's functions and `sed -E`.
 - **Shell:** shfmt reads its options from [`.editorconfig`](../.editorconfig), which also keeps the `Makefile` indented with tabs.
-- **No tests:** the project has no unit tests. The checks in [CONTRIBUTING.md](../CONTRIBUTING.md#checks) are the build and the shell lint.
+- **No tests:** the project has no unit tests. The checks in the README's [Building it](../README.md#building-it) are the build and the shell lint.
 
 ## Decisions
 

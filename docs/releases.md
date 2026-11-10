@@ -60,7 +60,7 @@ When a release is due, the `build` job works out its version with [commitizen](h
 - `--allow-no-commit` makes a release whose commits are all of a type with no bump, such as `chore` or `ci`, a patch. A release is only due when the user-data has changed, so it always gets a new version.
 - `--yes` answers the question commitizen asks when there's no tag yet. Without it, the command waits for input (observed).
 - The first release is `v0.1.0`. With no tags, commitizen counts from `0.0.0`, and the history's `feat` commits give `0.1.0` (observed). The job never releases below `v0.1.0`.
-- Choose a pull request's type by what it changes, and mark a breaking change with `!`, as [CONTRIBUTING.md](../CONTRIBUTING.md#how-changes-land) says. To preview the next version, run the same command in a clone with the tags.
+- Choose a pull request's type by what it changes: `feat` for something new an instance sets up, `fix`, `perf` or `refactor` for other changes to the user-data, and `docs`, `ci`, `test` or `chore` for changes that leave it alone. Mark a breaking change with `!`, such as a change that makes users change their meta-data. To preview the next version, run the same command in a clone with the tags.
 
 ## Tags and assets
 

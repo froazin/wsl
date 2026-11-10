@@ -133,9 +133,24 @@ sparseVhd=true
 - `networkingMode=Mirrored` needs Windows 11 22H2 or later. Where it isn't supported, WSL falls back to no network, so remove the line.
 - WSL reads the file when its virtual machine starts, so run `wsl --shutdown` after you change it.
 
+### Building it
+
+Build on a current Ubuntu, or in a WSL instance built from this config, so the build uses a cloud-init close to the instance's. Install the tools from apt, then run the build and the checks from the repository's root:
+
+```sh
+sudo apt-get install cloud-init make shellcheck shfmt
+make build
+shellcheck .github/scripts/*.sh
+shfmt -d .
+```
+
+- `make build` joins every fragment in `src/`, in the order of their numbers, into `dist/Ubuntu.user-data`. It only rebuilds it when a fragment or the `Makefile` changes, and the same fragments build the same file. `make clean` deletes `dist/`. Edit `src/`, never `dist/`.
+- There are no unit tests, and nothing validates the rendered user-data. [Build](docs/build.md#validation) says what `make build` does and doesn't check.
+- shfmt reads its options from `.editorconfig`, so run it without formatting flags: any flag such as `-i` makes it ignore `.editorconfig`.
+
 ### Testing a change
 
-Build the user-data with `make build`, as [CONTRIBUTING.md](CONTRIBUTING.md#set-up) describes. Copy `dist/Ubuntu.user-data` as `Test.user-data`, and write `Test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
+Build the user-data with `make build`, as [Building it](#building-it) describes. Copy `dist/Ubuntu.user-data` as `Test.user-data`, and write `Test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
 
 ```powershell
 wsl --install Ubuntu --name Test
@@ -175,7 +190,7 @@ The design docs explain each part, for anyone changing it:
 
 ## Contributing
 
-Issues and pull requests are open to this repository's collaborators only, because the config runs as root on their machines. You're welcome to use the config as it is, or to fork the repository and keep your own version. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Issues and pull requests are open to this repository's collaborators only, because the config runs as root on their machines. You're welcome to use the config as it is, or to fork the repository and keep your own version, as [Making it your own](#making-it-your-own) describes.
 
 ## Licence
 
