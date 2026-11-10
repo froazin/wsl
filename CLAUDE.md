@@ -21,6 +21,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 | `.github/dependabot.yml` | The weekly action updates |
 | `REVIEW.md` | Instructions for CI's Claude code review: what counts as Important, the Nit cap, what to skip, what to always check and the evidence a finding needs |
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |
+| `.cz.toml` | commitizen's settings, which the release workflow works out each release's version with. See [docs/releases.md](docs/releases.md#how-the-version-is-decided) |
 | `.claude/settings.json` | The project's permissions for Claude Code: the build command |
 | `README.md` | The entry point for people who use the config, with the install steps, the meta-data example and the `.wslconfig` example. The end-to-end tests read the meta-data example after its `<!-- meta-data example -->` comment. Before you change the example, read [docs/meta-data.md](docs/meta-data.md) |
 | `CONTRIBUTING.md` | Who can open issues and pull requests, how changes land, the set-up and the checks to run |
@@ -35,7 +36,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 - **Edit `src/`, never `dist/`.** Run `make build` to rebuild `dist/`.
 - **Each fragment stands alone.** cloud-init renders each fragment's Jinja on its own, so a fragment sets every Jinja variable it uses, and every fragment keeps the shared `merge_how` that appends lists. See [docs/build.md](docs/build.md#how-the-build-works).
 - **Number fragments to order them.** A fragment's two-digit number sets where it merges and where its `runcmd` entries run. Number a new one into the gap where it belongs, rather than renumbering the rest. See [docs/build.md](docs/build.md#the-fragments).
-- **Build with make and the cloud-init CLI.** The build is the `Makefile` alone, with no manifests, versions or Python tooling. Keep it that small. The project has no unit tests.
+- **Build with make and the cloud-init CLI.** The build is the `Makefile` alone, with no manifests, version files or Python tooling. Keep it that small. The project has no unit tests.
 - **Keep `packages` in step with the dotfiles.** The fragments' `packages` list the dotfiles modules' dependencies. When a dotfiles module gains a dependency, add it here too.
 - **Don't write outside the repository to test.** Writing to the Windows profile (`%USERPROFILE%\.cloud-init`, `.wslconfig`), or installing or unregistering WSL instances, needs the user's go-ahead.
 - Run the checks in [CONTRIBUTING.md](CONTRIBUTING.md#checks) before you say a change works.
@@ -53,7 +54,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 
 - **Commit scopes:** `cloud-init`, `tooling` (the `Makefile`), `ci`, `docs`, `claude`, `deps`.
 - **Feature flags:** none.
-- **Releases:** GitHub releases with no version. The release workflow on `main` releases `Ubuntu.user-data` when its SHA-1 differs from the latest release's, tagged with the commit's date and short SHA, such as `2026.11.10-0783a85`. Nothing bumps a version. See [docs/releases.md](docs/releases.md).
+- **Releases:** versioned GitHub releases, tagged `vX.Y.Z` by the release workflow on `main`. It releases `Ubuntu.user-data` when its SHA-1 differs from the latest release's, and commitizen works out the version from the pull request titles since the last release. The first release will be `v0.1.0`. See [docs/releases.md](docs/releases.md).
 - **CI:** `ci.yml` on every pull request to `main` that changes more than docs, and `release.yml` on every push to `main` that does. See [docs/ci.md](docs/ci.md) and [docs/releases.md](docs/releases.md).
 - User docs live in `README.md`. The repository has no wiki.
 - Issues and pull requests are limited to collaborators, because the config runs as root on their machines.

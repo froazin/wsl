@@ -1,0 +1,7 @@
+# commitizen works out each release's version from the Conventional Commit headers since the latest tag, as
+# docs/releases.md describes. Remove major_version_zero in the change that moves the project to v1.0.0.
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "scm"
+tag_format = "v$version"
+major_version_zero = true

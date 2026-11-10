@@ -33,16 +33,18 @@ jobs:
     outputs:
       tag: ${{ steps.compare.outputs.tag }}
     steps:
+      # commitizen reads the commits and tags since the latest release, so it needs the whole history.
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
-      # As in the CI workflow, the build runs cloud-init's make-mime.
+      # As in the CI workflow, the build runs cloud-init's make-mime. commitizen works out the version.
       - name: Install the tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cloud-init make
+          sudo apt-get install --yes --no-install-recommends cloud-init commitizen make
 
       - name: Build the config
         run: make build
@@ -50,7 +52,9 @@ jobs:
       # The build gives the same fragments the same file, so the same SHA-1 means nothing has changed. A release is due
       # only when the built user-data's SHA-1 differs from the latest release's, or there's no release yet. Otherwise the
       # tag is empty, and the later jobs are skipped. Any failure to read the latest release fails the job, so a release
-      # is never made because it couldn't be read. The tag is the commit's date in UTC and its short SHA.
+      # is never made because it couldn't be read. commitizen works out the version from the commits since the latest
+      # tag, with the settings in .cz.toml: --yes answers its question when there's no tag yet, and --allow-no-commit
+      # gives a patch when no commit calls for a bump. The first release is never below v0.1.0.
       - name: Compare with the latest release
         id: compare
         env:
@@ -68,7 +72,11 @@ jobs:
           if [ "$built" = "$published" ]; then
             echo "::notice title=Release::The user-data is the same as the latest release's, so there's nothing to release."
           else
-            tag="$(TZ=UTC0 git show --no-patch --format=%cd --date=format-local:%Y.%m.%d HEAD)-${GITHUB_SHA::7}"
+            version=$(cz bump --get-next --yes --allow-no-commit < /dev/null)
+            case "$version" in
+              0.0.*) version=0.1.0 ;;
+            esac
+            tag="v$version"
             echo "::notice title=Release::Releasing $tag."
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

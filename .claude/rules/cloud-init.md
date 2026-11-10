@@ -15,8 +15,9 @@ beside it from the example in `README.md`, matching the instance `Ubuntu`,
 the default name from `wsl --install Ubuntu`. It runs once, on first boot,
 and Ubuntu's OOBE (`/usr/lib/wsl/wsl-setup`) waits for it. Read
 `docs/build.md` before you add, rename or renumber a fragment. A change to a
-fragment is released from `main` once the end-to-end tests pass: there's no
-version to bump.
+fragment is released from `main` once the end-to-end tests pass, with a
+version commitizen works out from the pull request's title, so choose its
+type by what the change does and mark a breaking change with `!`.
 
 ## Keep it native
 

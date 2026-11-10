@@ -12,7 +12,8 @@ You're free to use the config as it is, or to fork the repository and change you
 
 - `main` is protected. Every change goes through a pull request from a short-lived branch, and is squash-merged.
 - Branches are named `feature/<slug>`, `bugfix/<slug>` or `other/<slug>`, with a lowercase, hyphenated slug.
-- Commit messages and pull request titles follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/), such as `feat(cloud-init): Install tree`. A pull request's title and description become its commit on `main`, so write them as a commit header and body. Mark a breaking change with `!` in the title.
+- Commit messages and pull request titles follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/), such as `feat(cloud-init): Install tree`. A pull request's title and description become its commit on `main`, so write them as a commit header and body.
+- A pull request's title decides the next release's version, because the release workflow works it out with commitizen from the titles since the last release. Choose its type by what the change does: `feat` for something new an instance sets up, `fix`, `perf` or `refactor` for other changes to the user-data, and `docs`, `ci`, `test` or `chore` for changes that leave it alone. Mark a breaking change with `!`, such as a change that makes users change their meta-data. [docs/releases.md](docs/releases.md#how-the-version-is-decided) gives the bumps.
 - Keep each pull request to one change. Rebase a branch on `main` to bring it up to date. Don't merge `main` into it.
 
 ## Set up
@@ -42,4 +43,4 @@ To test a real first boot, install a throwaway instance as the README's [Testing
 ## CI and releases
 
 - **Pull requests:** every pull request to `main` that changes more than docs runs the checks above in `ci.yml`. Claude then reviews the change by [REVIEW.md](REVIEW.md) and comments on the pull request. A pull request merges once CI passes and every review thread is resolved. [docs/ci.md](docs/ci.md) describes each job.
-- **Releases:** every push to `main` that changes more than docs runs `release.yml`. It builds the user-data and, when its SHA-1 differs from the latest release's, installs an instance from it on Windows runners and publishes it as a GitHub release, tagged with the commit's date and short SHA. There's no version to bump. [docs/releases.md](docs/releases.md) describes it.
+- **Releases:** every push to `main` that changes more than docs runs `release.yml`. It builds the user-data and, when its SHA-1 differs from the latest release's, installs an instance from it on Windows runners and publishes it as a GitHub release, tagged `vX.Y.Z` with the version commitizen works out. Nobody bumps a version by hand. [docs/releases.md](docs/releases.md) describes it.

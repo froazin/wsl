@@ -1,11 +1,12 @@
 # Releases
 
-How [`.github/workflows/release.yml`](../.github/workflows/release.yml) releases the user-data from `main`: when a release is due, the end-to-end tests on Windows runners and the tag and asset it publishes. It's for engineers changing the workflow or the end-to-end scripts in [`.github/scripts/`](../.github/scripts/).
+How [`.github/workflows/release.yml`](../.github/workflows/release.yml) releases the user-data from `main`: when a release is due, how its version is worked out, the end-to-end tests on Windows runners and the tag and asset it publishes. It's for engineers changing the workflow or the end-to-end scripts in [`.github/scripts/`](../.github/scripts/).
 
 ## Contents
 
 1. [Overview](#overview)
 1. [When a release is due](#when-a-release-is-due)
+1. [How the version is decided](#how-the-version-is-decided)
 1. [Tags and assets](#tags-and-assets)
 1. [End-to-end tests](#end-to-end-tests)
 1. [Security](#security)
@@ -20,22 +21,22 @@ The workflow runs on every push to `main`, with the same `paths` filter as [CI](
 ```mermaid
 flowchart LR
     accTitle: The jobs that release the user-data
-    accDescr: A push to main that changes more than docs starts the workflow. The build job builds the user-data and compares its SHA-1 with the latest release's. When they differ, the e2e job installs an Ubuntu instance on Windows runners with the built user-data, with and without a user. When both pass, the release job creates a tag from the commit's date and short SHA, and a GitHub release with the user-data as its only asset.
-    push["Push to main"] -->|"not only docs"| build["build: make build, sha1sum"]
+    accDescr: A push to main that changes more than docs starts the workflow. The build job builds the user-data and compares its SHA-1 with the latest release's. When they differ, the e2e job installs an Ubuntu instance on Windows runners with the built user-data, with and without a user. When both pass, the release job creates a tag with the version commitizen works out, and a GitHub release with the user-data as its only asset.
+    push["Push to main"] -->|"not only docs"| build["build: make build, sha1sum, cz"]
     latest[("Latest release")] -->|"its Ubuntu.user-data"| build
     build -->|"SHA-1 differs, user-data as an artifact"| e2e["e2e: windows-2025, two cases"]
     build -->|"same SHA-1"| stop["Nothing to release"]
     e2e -->|passed| release["release: gh release create"]
-    release -->|"tag YYYY.MM.DD-sha and Ubuntu.user-data"| latest
+    release -->|"tag vX.Y.Z and Ubuntu.user-data"| latest
 ```
 
-- **`build`** sets up the tools as the CI `checks` job does and runs `make build`. It then compares the user-data with the latest release's, as [When a release is due](#when-a-release-is-due) describes. When a release is due, it outputs the tag and uploads `dist/Ubuntu.user-data` as the `dist` artifact. Otherwise it outputs no tag, and the later jobs are skipped.
+- **`build`** checks out the whole history, sets up the tools as the CI `checks` job does, adds commitizen and runs `make build`. It then compares the user-data with the latest release's, as [When a release is due](#when-a-release-is-due) describes. When a release is due, it works out the version, as [How the version is decided](#how-the-version-is-decided) describes, outputs the tag and uploads `dist/Ubuntu.user-data` as the `dist` artifact. Otherwise it outputs no tag, and the later jobs are skipped.
 - **`e2e`** runs only when a release is due. See [End-to-end tests](#end-to-end-tests).
 - **`release`** needs both, so a failed build or end-to-end test skips it. It checks it's the newest run with `gh run list`, then downloads the artifact and runs `gh release create "$TAG" dist/Ubuntu.user-data --target "$GITHUB_SHA" --generate-notes`.
 
 ## When a release is due
 
-The project has no version to bump. A release is due when the user-data changes:
+Nobody decides when to release, or bumps a version by hand. A release is due when the user-data changes:
 
 1. The build is reproducible: it replaces make-mime's random MIME boundary with a fixed one, as [Build](build.md#how-the-build-works) describes, so the same fragments build the same file with the same cloud-init.
 1. The `build` job takes the SHA-1 of `dist/Ubuntu.user-data` with `sha1sum`.
@@ -44,9 +45,26 @@ The project has no version to bump. A release is due when the user-data changes:
 
 So any change to a fragment, or a change to the `Makefile` that changes its output, makes a release, and any other change, such as to CI, the end-to-end scripts or the README, makes none. That holds while the latest release has the current user-data: after a release that didn't go out, such as after a failed end-to-end test, any later push that changes more than docs tries again. Nobody has to decide whether a change makes a release. Any failure to read the latest release fails the job, so a release is never made because it couldn't be read.
 
+## How the version is decided
+
+When a release is due, the `build` job works out its version with [commitizen](https://commitizen-tools.github.io/commitizen/), from Ubuntu's archive, using the settings in [`.cz.toml`](../.cz.toml). It runs `cz bump --get-next --yes --allow-no-commit`, which only prints the version. commitizen reads the Conventional Commit headers since the latest `v` tag, which are the squash-merged pull requests' titles, so a pull request's title decides its bump:
+
+| Title | Bump before `v1.0.0` | Bump from `v1.0.0` |
+| --- | --- | --- |
+| Any type with `!` | Minor | Major |
+| `feat` | Minor | Minor |
+| `fix`, `perf`, `refactor` or anything else | Patch | Patch |
+
+- `version_provider = "scm"` reads the current version from the latest tag, so no file holds a version. The `build` job checks out the whole history for this.
+- `major_version_zero = true` keeps a breaking change to a minor bump before `v1.0.0`. Remove it in the change that moves the project to `v1.0.0`, because commitizen 4.11.0 keeps applying it at `1.x` (observed).
+- `--allow-no-commit` makes a release whose commits are all of a type with no bump, such as `chore` or `ci`, a patch. A release is only due when the user-data has changed, so it always gets a new version.
+- `--yes` answers the question commitizen asks when there's no tag yet. Without it, the command waits for input (observed).
+- The first release is `v0.1.0`. With no tags, commitizen counts from `0.0.0`, and the history's `feat` commits give `0.1.0` (observed). The job never releases below `v0.1.0`.
+- Choose a pull request's type by what it changes, and mark a breaking change with `!`, as [CONTRIBUTING.md](../CONTRIBUTING.md#how-changes-land) says. To preview the next version, run the same command in a clone with the tags.
+
 ## Tags and assets
 
-- The tag is the commit's date in UTC and its short SHA, such as `2026.11.10-0783a85`, so tags sort by date and name the commit they came from. GitHub creates it on the commit the run built, through `gh release create --target`. The release notes are GitHub's generated notes.
+- The tag is `v` and the version, such as `v0.1.0`, as [How the version is decided](#how-the-version-is-decided) describes. GitHub creates it on the commit the run built, through `gh release create --target`. The release notes are GitHub's generated notes.
 - The only asset is `Ubuntu.user-data`. The README downloads it from `https://github.com/froazin/wsl/releases/latest/download/Ubuntu.user-data`.
 - No meta-data is released. Users write their own from the README's [meta-data example](../README.md#the-meta-data-example).
 - The user-data's parts are base64 in the MIME file, so the README sends readers to the fragments in `src/fragments/` at the release's tag to read them.
@@ -78,9 +96,9 @@ Each step is a script in `.github/scripts/`:
 
 ## Decisions
 
-- **The user-data's hash, not a version.** A release is due exactly when what users download changes, so nobody bumps a version, and the code review has no bump to check. A change to the `Makefile` that builds the same file makes no release.
+- **The user-data's hash decides when, the commits decide the version.** A release is due exactly when what users download changes, and its version comes from the pull requests' titles, so nobody bumps a version by hand. A change to the `Makefile` that builds the same file makes no release.
 - **SHA-1 with `sha1sum`.** It only has to tell two builds apart, not resist an attacker, and `sha1sum` is on every runner.
-- **A tag from the date and commit.** It sorts by date, names the commit and needs no state to work out.
+- **commitizen from Ubuntu's archive.** It's installed with apt, like the build's tools, and works out a Semantic Versioning version from the Conventional Commit headers the project already writes. Tools such as svu and git-cliff would have to be downloaded and pinned by hand.
 - **End-to-end tests before a release, not on each pull request.** They take a long time on Windows runners, and only what's released reaches users.
 - **A raw runner, not a setup action.** The `e2e` job installs the instance with `wsl.exe` as a user would, so it tests the README's steps rather than an action's.
 - **The README's example, filled in.** The `e2e` job fills in the meta-data example users copy rather than using a fixture, so its defaults, such as the gh extension, are tested too.
@@ -91,6 +109,7 @@ Each step is a script in `.github/scripts/`:
 
 - The tests install whatever release of Ubuntu the Store's `Ubuntu` is, so they move to a new release of Ubuntu when the Store does, without a change here.
 - A new cloud-init on the runner that changes make-mime's output, but not the fragments, makes a release.
+- commitizen bumps by the titles alone. A title whose type doesn't match the change, such as `feat` for a refactor, gives the wrong bump.
 - The tag GitHub creates isn't signed by a maintainer's key.
 - A newer run that's cancelled by hand, rather than replaced by a newer push, takes its release with it. Re-run it to release.
 - A failed end-to-end test on `main` blocks the release. The next push that changes more than docs still builds a user-data that differs from the latest release, so it runs the tests again, and releases when they pass.
@@ -102,6 +121,8 @@ Each step is a script in `.github/scripts/`:
 
 ## Sources
 
+- https://commitizen-tools.github.io/commitizen/commands/bump/
+- https://commitizen-tools.github.io/commitizen/config/version_provider/
 - https://cli.github.com/manual/gh_release_create
 - https://cli.github.com/manual/gh_release_download
 - https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases
