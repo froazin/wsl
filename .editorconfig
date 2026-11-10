@@ -18,6 +18,3 @@ function_next_line = true
 
 [Makefile]
 indent_style = tab
-
-[.venv/**]
-ignore = true

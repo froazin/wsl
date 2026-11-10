@@ -1,26 +1,27 @@
 ---
 name: CI
 
-on: {}
-  # pull_request:
-  #   branches:
-  #     - main
-  #   # A change only to the docs can't change the config or how it's checked, so it runs nothing. README.md isn't skipped,
-  #   # because it holds the meta-data example the checks read. A later pattern wins over an earlier one.
-  #   paths:
-  #     - "**"
-  #     - "!**.md"
-  #     - "README.md"
-  #     - "!.claude/**"
-  #     - "!.github/dependabot.yml"
-  #     - "!.vscode/**"
-  #     - "!docs/**"
-  #     - "!LICENSE"
-  #   types:
-  #     - opened
-  #     - synchronize
-  #     - reopened
-  #     - ready_for_review
+on:
+  pull_request:
+    branches:
+      - main
+    # A change only to the docs can't change the config or how it's checked, so it runs nothing. README.md isn't skipped,
+    # because the release workflow's end-to-end tests read its meta-data example, and the two lists stay the same. A later
+    # pattern wins over an earlier one.
+    paths:
+      - "**"
+      - "!**.md"
+      - "README.md"
+      - "!.claude/**"
+      - "!.github/dependabot.yml"
+      - "!.vscode/**"
+      - "!docs/**"
+      - "!LICENSE"
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
 
 permissions:
   contents: read
@@ -32,7 +33,7 @@ concurrency:
 jobs:
   # The end-to-end tests run on main, in release.yml, before anything is released.
   checks:
-    name: Lint and validate
+    name: Lint and build
     runs-on: &runs-on ubuntu-26.04
     steps:
       - name: Check out the repository
@@ -40,35 +41,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # The build runs make-mime from a current Ubuntu's cloud-init.
       - name: Install the tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cloud-init python3-yaml shellcheck shfmt
+          sudo apt-get install --yes --no-install-recommends cloud-init make shellcheck shfmt
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-
-      # The venv is built on the runner's system Python, with its site packages, so the validation can import apt's
-      # cloud-init.
-      - name: Install the dev dependencies
-        run: |
-          uv venv --system-site-packages --python /usr/bin/python3
-          uv sync
-
-      - name: Lint Python
-        run: uv run ruff check --output-format=github .
-
-      - name: Check Python formatting
-        run: uv run ruff format --check .
-
-      - name: Type check
-        run: uv run pyright
-
-      - name: Run the unit tests
-        run: uv run pytest
-
-      - name: Build and validate the config
-        run: uv run invoke validate
+      - name: Build the config
+        run: make build
 
       - name: Lint the shell scripts
         run: shellcheck .github/scripts/*.sh
@@ -79,12 +59,10 @@ jobs:
   code-review:
     name: Code review
     # Only code that passed the checks is reviewed, so no tokens go on code that's known to be broken. Drafts aren't
-    # reviewed until they're ready. A Dependabot PR only changes dependencies: the checks run the Python ones, and the
-    # release workflow's actions first run on main.
+    # reviewed until they're ready. A Dependabot PR only bumps pinned actions: the checks run ci.yml's, and the release
+    # workflow's first run on main.
     needs: checks
-    if: >-
-      ${{ !github.event.pull_request.draft
-      && github.event.pull_request.user.login != 'dependabot[bot]' }}
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: *runs-on
     # pull-requests: write for Claude's comments, and actions: read to count the earlier reviews.
     permissions:
@@ -278,7 +256,7 @@ jobs:
             3. Check each finding against the code before you post it. Drop any you can't back with evidence.
             4. Post each finding with `mcp__github_inline_comment__create_inline_comment`.
 
-            CI has already run Ruff, Pyright, pytest, `invoke validate`, ShellCheck and shfmt, and they passed. The end-to-end tests on Windows runners haven't run: they run on main, before a release. Don't report on the pull request's title and description.
+            CI has already run `make build`, ShellCheck and shfmt, and they passed. `make build` only joins the fragments: nothing has rendered the user-data or run `cloud-init schema` on it, so check those by reading. The end-to-end tests on Windows runners haven't run: they run on main, before a release. Don't report on the pull request's title and description.
 
             ## What to report
 

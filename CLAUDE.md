@@ -1,6 +1,6 @@
 # WSL
 
-A reusable cloud-init config that builds a WSL instance for development from scratch, for each distro in `src/manifests/`, and installs the [froazin/dotfiles](https://github.com/froazin/dotfiles) into it. It's written as cloud-config fragments in `src/`, which each distro's manifest picks from, built into the files each GitHub release publishes. The repository is public, and people copy from it, so it stays generic.
+A reusable cloud-init config that builds an Ubuntu WSL instance for development from scratch, and installs the [froazin/dotfiles](https://github.com/froazin/dotfiles) into it. It's written as numbered cloud-config fragments in `src/fragments/`, joined in order into the one user-data file each GitHub release publishes. The repository is public, and people copy from it, so it stays generic.
 
 ## Contents
 
@@ -12,22 +12,22 @@ A reusable cloud-init config that builds a WSL instance for development from scr
 
 | Path | Holds |
 | --- | --- |
-| `src/fragments/` | Every cloud-config fragment, one per feature, merged in the order a manifest lists them. Before you change them, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
-| `src/manifests/<distro>.yml` | A distro's manifest: its name, version and description, and every fragment in its user-data, keyed by its place in the merge. Before you add a distro, change a manifest or add a fragment for one distro, read [docs/distros.md](docs/distros.md) |
-| `schemas/manifest.schema.json`, `pkg/manifest.py`, `pkg/schema.py` | The manifest's schema, loading a manifest and checking it. Before you change them, read [docs/distros.md](docs/distros.md) |
-| `dist/` | The built files each release publishes. `make build` writes it, and Git ignores it |
-| `Makefile`, `tasks.py`, `pkg/` | Setting up `.venv` and the `build` task, which joins each manifest's fragments into `dist/` with `pkg/fragments.py` and cloud-init's `create_mime_message`. Before you change them, read [docs/build.md](docs/build.md). There's no validation yet: the `validate-user-data` skill is stale |
-| `pyproject.toml`, `pyrightconfig.json` | The Python dependencies and the settings for uv, pytest, Ruff and Pyright. See [Tool configuration](docs/build.md#tool-configuration) |
+| `src/fragments/` | Every cloud-config fragment, one per feature, named `<NN>-<feature>.user-data` and merged in the order of their numbers. Before you add, change or renumber one, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
+| `dist/` | `Ubuntu.user-data`, the file each release publishes. `make build` writes it, and Git ignores it |
+| `Makefile` | `make build`, which joins the fragments into `dist/Ubuntu.user-data` with `cloud-init devel make-mime` and a fixed MIME boundary, and `make clean`. Before you change it, read [docs/build.md](docs/build.md). Nothing validates the rendered user-data |
 | `docs/` | Design docs for engineers changing the config |
-| `.github/workflows/ci.yml` | CI on pull requests: the checks and Claude's code review. It still runs the old validation. Before you change it, read [docs/ci.md](docs/ci.md) |
-| `.github/workflows/release.yml`, `.github/scripts/` | The release workflow on `main`, with the end-to-end tests on Windows runners and their scripts. It hasn't been rebuilt for the new build. Before you change them, read [docs/releases.md](docs/releases.md) |
-| `.github/dependabot.yml` | The weekly action and uv updates. See [Dependabot](docs/ci.md#dependabot) |
+| `.github/workflows/ci.yml` | CI on pull requests: the checks and Claude's code review. Before you change it, read [docs/ci.md](docs/ci.md) |
+| `.github/workflows/release.yml`, `.github/scripts/` | The release workflow on `main`, with the end-to-end tests on Windows runners and their scripts. Before you change them, read [docs/releases.md](docs/releases.md) |
+| `.github/dependabot.yml` | The weekly action updates |
 | `REVIEW.md` | Instructions for CI's Claude code review: what counts as Important, the Nit cap, what to skip, what to always check and the evidence a finding needs |
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |
+| `.cz.toml` | commitizen's settings, which the release workflow works out each release's version with. See [docs/releases.md](docs/releases.md#how-the-version-is-decided) |
+| `.claude/settings.json` | The project's permissions for Claude Code: the build command and the version preview, `cz bump --get-next --yes --allow-no-commit` |
 | `README.md` | The entry point for people who use the config, with the install steps, the meta-data example and the `.wslconfig` example. The end-to-end tests read the meta-data example after its `<!-- meta-data example -->` comment. Before you change the example, read [docs/meta-data.md](docs/meta-data.md) |
 | `CONTRIBUTING.md` | Who can open issues and pull requests, how changes land, the set-up and the checks to run |
-| `.editorconfig`, `.gitattributes` | shfmt and editor settings, and LF line endings for every file |
-| `.vscode/settings.json` | Shared VS Code settings: Jinja YAML highlighting for the cloud-init files, TOML for `.wslconfig` and the schema for each manifest in `src/manifests/` |
+| `.editorconfig`, `.gitattributes`, `.gitignore` | shfmt and editor settings, LF line endings for every file and what Git ignores, such as `dist/` |
+| `.vscode/settings.json` | Shared VS Code settings: Jinja YAML highlighting for the cloud-init files and Jinja TOML for `.wslconfig` |
+| `LICENSE` | The MIT licence |
 
 ## Conventions
 
@@ -35,8 +35,8 @@ A reusable cloud-init config that builds a WSL instance for development from scr
 - **Prefer native mechanisms:** cloud-init modules, and official installers run as the user so they can update themselves, over custom glue.
 - **Edit `src/`, never `dist/`.** Run `make build` to rebuild `dist/`.
 - **Each fragment stands alone.** cloud-init renders each fragment's Jinja on its own, so a fragment sets every Jinja variable it uses, and every fragment keeps the shared `merge_how` that appends lists. See [docs/build.md](docs/build.md#how-the-build-works).
-- **Share fragments by default.** List a fragment in only one manifest when what it says is wrong for another distro. Split the part that differs out of a shared fragment rather than copying it. Every distro reads the same meta-data keys. See [docs/distros.md](docs/distros.md#shared-or-distro-fragments).
-- **Keep `tasks.py` thin.** A task only calls `pkg/` and turns its error into an exit status. Put logic in `pkg/`, and its tests in `tests/`.
+- **Number fragments to order them.** A fragment's two-digit number sets where it merges and where its `runcmd` entries run. Number a new one into the gap where it belongs, rather than renumbering the rest. See [docs/build.md](docs/build.md#the-fragments).
+- **Build with make and the cloud-init CLI.** The build is the `Makefile` alone, with no manifests, version files or Python tooling. Keep it that small. The project has no unit tests.
 - **Keep `packages` in step with the dotfiles.** The fragments' `packages` list the dotfiles modules' dependencies. When a dotfiles module gains a dependency, add it here too.
 - **Don't write outside the repository to test.** Writing to the Windows profile (`%USERPROFILE%\.cloud-init`, `.wslconfig`), or installing or unregistering WSL instances, needs the user's go-ahead.
 - Run the checks in [CONTRIBUTING.md](CONTRIBUTING.md#checks) before you say a change works.
@@ -52,9 +52,9 @@ A reusable cloud-init config that builds a WSL instance for development from scr
 | --- | --- | --- | --- | --- | --- |
 | Source | `.` | `froazin/wsl` | Public | `main` | Code: PRs, squash-merged |
 
-- **Commit scopes:** `cloud-init`, `tooling` (the `Makefile`, `tasks.py`, `pkg/` and the Python settings), `ci`, `docs`, `claude`, `deps`.
+- **Commit scopes:** `cloud-init`, `tooling` (the `Makefile`), `ci`, `docs`, `claude`, `deps`.
 - **Feature flags:** none.
-- **Releases:** versioned GitHub releases, tagged `vX.Y.Z` by the release workflow on `main`. A release is made only when the content of `dist/` changes, and the commits that change `src/` decide its version. The first release will be `v0.1.0`. Releases haven't been rebuilt for the new build yet. See [docs/releases.md](docs/releases.md).
+- **Releases:** versioned GitHub releases, tagged `vX.Y.Z` by the release workflow on `main`. It releases `Ubuntu.user-data` when its SHA-1 differs from the latest release's, and commitizen works out the version from the pull request titles since the last release. The first release will be `v0.1.0`. See [docs/releases.md](docs/releases.md).
 - **CI:** `ci.yml` on every pull request to `main` that changes more than docs, and `release.yml` on every push to `main` that does. See [docs/ci.md](docs/ci.md) and [docs/releases.md](docs/releases.md).
 - User docs live in `README.md`. The repository has no wiki.
 - Issues and pull requests are limited to collaborators, because the config runs as root on their machines.

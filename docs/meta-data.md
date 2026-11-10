@@ -15,11 +15,11 @@ How the WSL user-data reads each key of the meta-data, which users write from th
 
 ## Overview
 
-The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\<distro>.meta-data`, such as `Ubuntu-26.04.meta-data`, by copying the README's example and filling it in. Every distro reads the same keys, so one example serves them all. Releases don't ship it. The example leaves the identifying values empty, and its comments describe each key. cloud-init's WSL datasource reads the file.
+The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\Ubuntu.meta-data` by copying the README's example and filling it in. Releases don't ship it. The example leaves the identifying values empty, and its comments describe each key. cloud-init's WSL datasource reads the file.
 
-The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. The [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, and find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in, and add every new key to the example. The old validation also rendered the user-data with the example and checked those lines. That will be rebuilt, as [Build](build.md#validation) says.
+The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. The [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, and find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in, and add every new key to the example. Nothing else checks the example before a release, as [Build](build.md#validation) says.
 
-Each key is read in the fragments in [`src/fragments/`](../src/fragments/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A distro's own fragment reads a key the same way, and a new key goes into the README's example for every distro.
+Each key is read in the fragments in [`src/fragments/`](../src/fragments/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A new key goes into the README's example.
 
 Each fragment turns the keys it reads into the variables its cloud-config uses. This flowchart shows where each key ends up:
 
@@ -40,6 +40,8 @@ flowchart LR
 ## Keys
 
 Every key apart from `instance-id` needs `username`: without one, the user-data writes no `~/.gitconfig` or other file into a home, and installs nothing as a user.
+
+The "Read in" column calls each fragment by its feature, such as `git` for `80-git.user-data`.
 
 | Key | Expected type | Value in the example | Read in | Ends up in |
 | --- | --- | --- | --- | --- |

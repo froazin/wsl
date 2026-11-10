@@ -5,26 +5,26 @@ paths:
 
 # WSL cloud-init (`src/`)
 
-The user-data is written as cloud-config fragments, all in `fragments/`.
-`manifests/<distro>.yml` names a distro and lists every fragment in its
-user-data, keyed by its place in the merge. `make build` joins each
-manifest's fragments with cloud-init's `create_mime_message` into
-`dist/<name>.user-data`, a MIME multipart file with one part per fragment.
-Edit `src/`, never `dist/`. Each release
-publishes them; users download one to `%USERPROFILE%\.cloud-init\` and write
-the meta-data beside it from the example in `README.md`, matching an instance
-named after the distro, such as `Ubuntu-26.04`, the default name from
-`wsl --install Ubuntu-26.04`. It runs once, on first boot, and Ubuntu's OOBE
-(`/usr/lib/wsl/wsl-setup`) waits for it. Read `docs/build.md` before you add,
-rename or move a fragment, and `docs/distros.md` before you change a
-manifest or add a fragment only one distro lists. Share fragments by default.
+The user-data is written as cloud-config fragments in `fragments/`, named
+`<NN>-<feature>.user-data`. `make build` joins every fragment, in the order
+of their numbers, with `cloud-init devel make-mime` into
+`dist/Ubuntu.user-data`, a MIME multipart file with one part per fragment.
+Edit `src/`, never `dist/`. Each release publishes `Ubuntu.user-data`;
+users download it to `%USERPROFILE%\.cloud-init\` and write the meta-data
+beside it from the example in `README.md`, matching the instance `Ubuntu`,
+the default name from `wsl --install Ubuntu`. It runs once, on first boot,
+and Ubuntu's OOBE (`/usr/lib/wsl/wsl-setup`) waits for it. Read
+`docs/build.md` before you add, rename or renumber a fragment. A change to a
+fragment is released from `main` once the end-to-end tests pass, with a
+version commitizen works out from the pull request's title, so choose its
+type by what the change does and mark a breaking change with `!`.
 
 ## Keep it native
 
-Prefer plain cloud-init modules and semantics over custom scripts. Identifying
-values come only from `<InstanceName>.meta-data`, read in each fragment that uses them as
-`ds.meta_data.*`. Do not add loaders that read other files from the Windows
-side.
+Prefer plain cloud-init modules and semantics over custom scripts.
+Identifying values come only from `<InstanceName>.meta-data`, read in each
+fragment that uses them as `ds.meta_data.*`. Don't add loaders that read
+other files from the Windows side.
 
 ## Facts that constrain the design
 
@@ -36,11 +36,11 @@ side.
   plain cloud-config, such as the MIME file, in `#include`; the parts still
   render (inferred from the datasource's source).
 - cloud-init merges the parts in the order they're attached, which is the
-  manifest's key order. Every fragment keeps the shared `merge_how`
-  (`list(append)`, `dict(no_replace, recurse_list)`), or its lists replace
-  the earlier fragments' lists. A fragment's key sets where its `runcmd`
-  entries run; give a distro's own fragment a key between the shared ones
-  it runs among, so the order reads plainly.
+  order of the fragments' numbers. Every fragment keeps the shared
+  `merge_how` (`list(append)`, `dict(no_replace, recurse_list)`), or its
+  lists replace the earlier fragments' lists. A fragment's number sets where
+  its `runcmd` entries run, so give a new one a number between those of the
+  fragments it runs after and before.
 - A fragment that reads meta-data starts with `## template: jinja`.
   cloud-init renders each part on its own, so a fragment sets every variable
   and macro it uses, such as `user`; another fragment's are undefined, and an
@@ -58,9 +58,9 @@ side.
   enable user units with `systemctl --global enable`. The first
   `runuser -l <user>` entry starts the user's manager (pam_systemd), which
   reads the global wants only when it starts, so global enables go in an
-  earlier fragment.
-  `--global` also reaches root's user manager, which `sudo su` starts; keep a
-  unit out of it with a `ConditionUser=!root` drop-in.
+  earlier fragment. `--global` also reaches root's user manager, which
+  `sudo su` starts; keep a unit out of it with a `ConditionUser=!root`
+  drop-in.
 - Module order: init stage runs `write_files` and `users`; final stage runs
   packages, deferred `write_files`, then `runcmd` (a `#!/bin/sh` script with
   no `set -e`, so entries are independent). Anything that needs a package or
@@ -90,16 +90,15 @@ side.
 
 The repo is public. No usernames, emails, signing keys, hostnames or
 `/mnt/c/Users/<name>/` paths in any file here; they belong in the user's
-private meta-data. Nothing checks for such a path until validation is
-rebuilt, so look for one yourself. The README's meta-data example is public too: identifying values
+private meta-data. Nothing checks for such a path, so look for one
+yourself. The README's meta-data example is public too: identifying values
 stay empty, and only generic defaults such as `vscode_extensions` and
 `gh_extensions` are filled in. A key added to the user-data goes into the
 example.
 
-## Validate
+## Check a change
 
-There's no validation yet: the `validate-user-data` skill is stale, and
-`scripts/build/cases.py` went with the old build. After every change, run
-`make build`, and tell the user that the user-data couldn't be validated.
-Note any new meta-data key or conditional, so a case can be added for it
-once validation is rebuilt.
+Nothing renders the user-data or runs `cloud-init schema` on it before a
+release. After every change, run `make build`, which only joins the
+fragments, and tell the user that the user-data couldn't be validated. The
+end-to-end tests install it on a first boot only when a release is due.

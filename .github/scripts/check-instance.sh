@@ -106,7 +106,7 @@ check "/usr/local/bin/start is executable" test -x /usr/local/bin/start
 check "the locale is en_GB.UTF-8" grep -q 'LANG=en_GB.UTF-8' /etc/default/locale
 
 # Packages, the GitHub CLI source and the links runcmd makes
-for cmd in zsh git gh jq curl direnv fzf python3 shellcheck shfmt podman buildah skopeo btop tree rg nmap virsh qemu-system-x86_64; do
+for cmd in zsh git gh jq curl direnv fzf python3 make cz shellcheck shfmt podman buildah skopeo btop tree rg nmap virsh qemu-system-x86_64; do
     check "$cmd is installed" command -v "$cmd"
 done
 
