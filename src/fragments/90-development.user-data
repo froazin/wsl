@@ -13,6 +13,8 @@ merge_how:
 {% set nvm_dir = '~/' ~ workspace(nvm_repo) %}
 
 packages:
+  - commitizen
+  - make
   - shellcheck
   - shfmt
 {% if user %}

@@ -12,7 +12,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 
 ## What it sets up
 
-- The packages a zsh workstation needs, plus podman and tools such as `gh`, `ripgrep`, `fd` and `btop`.
+- The packages a zsh workstation needs, plus podman and tools such as `gh`, `ripgrep`, `fd`, `btop`, `make` and commitizen (`cz`).
 - A KVM and libvirt stack for running virtual machines inside WSL.
 - podman's Docker-compatible API socket: rootless for every user, and the system socket for root.
 - `/etc/wsl.conf` with systemd on, and swap off, which WSL turns on by default.
