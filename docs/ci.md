@@ -1,6 +1,6 @@
 # CI
 
-How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull request (PR) before it merges: the build, the version check and the shell lint, and Claude's code review. It's for engineers changing the workflow or [`REVIEW.md`](../REVIEW.md). The end-to-end tests on Windows runners run on `main` before a release, as [Releases](releases.md) describes.
+How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull request (PR) before it merges: the build and the shell lint, and Claude's code review. It's for engineers changing the workflow or [`REVIEW.md`](../REVIEW.md). The end-to-end tests on Windows runners run on `main` before a release, as [Releases](releases.md) describes.
 
 ## Contents
 
@@ -20,8 +20,8 @@ How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull requ
 ```mermaid
 flowchart LR
     accTitle: The jobs that run on a pull request
-    accDescr: A pull request that changes more than docs starts the workflow. The checks job builds the config, checks the version and lints the shell scripts. When the checks pass, the code-review job runs Claude, which comments on the pull request.
-    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: make build, make version, ShellCheck, shfmt"]
+    accDescr: A pull request that changes more than docs starts the workflow. The checks job builds the user-data and lints the shell scripts. When the checks pass, the code-review job runs Claude, which comments on the pull request.
+    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: make build, ShellCheck, shfmt"]
     checks -->|passed| review["code-review: Claude"]
     review -->|comments| pr
 ```
@@ -31,9 +31,9 @@ flowchart LR
 
 ## Checks
 
-The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from the same release as the instance. It installs `cloud-init`, `jq`, `make`, `shellcheck` and `shfmt` from apt (see [Build](build.md#tools)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): `make build`, `make version`, ShellCheck on `scripts/*.sh` and `.github/scripts/*.sh`, and `shfmt -d .`.
+The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from a current release of Ubuntu. It installs `cloud-init`, `make`, `shellcheck` and `shfmt` from apt (see [Build](build.md#tools)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): `make build`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`.
 
-`make build` checks each manifest against the rules in `scripts/manifest.jq` and that its fragments exist, and `make version` that every manifest has the same version. Nothing renders the user-data or runs `cloud-init schema` on it, so the code review checks those by reading, and the end-to-end tests catch what it misses before a release.
+`make build` only joins the fragments. Nothing renders the user-data or runs `cloud-init schema` on it, so the code review checks those by reading, and the end-to-end tests catch what it misses before a release.
 
 ## Code review
 
@@ -76,7 +76,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - Nothing stops a maintainer merging a PR whose checks failed, because none are required.
 - A docs-only PR isn't reviewed, so nothing checks that its docs still match the code.
 - A PR whose checks are skipped has no workflow run at all, so its checks list is empty rather than skipped.
-- Nothing renders the user-data on a PR, so a change that fails `cloud-init schema` or a first boot is first caught by the end-to-end tests, and only when it bumps the version.
+- Nothing renders the user-data on a PR, so a change that fails `cloud-init schema` or a first boot is first caught by the end-to-end tests on `main`, and only when it changes the built user-data.
 
 ## Sources
 

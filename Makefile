@@ -1,36 +1,37 @@
-# Builds each distro's user-data into dist/, as docs/build.md describes.
+# Builds the user-data from the fragments, as docs/build.md describes.
 
-MANIFESTS := $(sort $(wildcard src/manifests/*.json))
-DISTROS := $(notdir $(basename $(MANIFESTS)))
-USER_DATA := $(DISTROS:%=dist/%.user-data)
-FRAGMENTS := $(wildcard src/fragments/*.user-data)
+FRAGMENTS := $(sort $(wildcard src/fragments/*.user-data))
+USER_DATA := dist/Ubuntu.user-data
 
-# make clean skips the checks, so it can run when the manifests are broken.
+ifeq ($(FRAGMENTS),)
 ifneq ($(MAKECMDGOALS),clean)
-ifeq ($(MANIFESTS),)
-$(error No manifests in src/manifests/)
+$(error No fragments in src/fragments/)
+endif
 endif
 
-# WSL matches a user-data to an instance by name without regard to case, so two manifests whose names differ only in
-# case would build the same instance's user-data.
-CLASHES := $(shell printf '%s\n' $(DISTROS) | awk '{ n[tolower($$0)]++; s[tolower($$0)] = s[tolower($$0)] " " $$0 } END { for (k in n) if (n[k] > 1) printf "%s", s[k] }')
-ifneq ($(CLASHES),)
-$(error Manifests in src/manifests/ whose names differ only in case:$(CLASHES))
-endif
-endif
+# A fragment whose first line is the Jinja header is a jinja2 part, and any other a cloud-config part.
+JINJA_HEADER := \#\# template: jinja
+# The x keeps an empty first line from matching.
+part_type = $(if $(subst $(JINJA_HEADER)x,,$(shell head -n 1 $(1))x),cloud-config,jinja2)
+
+# make-mime picks a random MIME boundary on every build. Replacing it with a fixed one makes the same fragments build
+# the same file, so a release can compare hashes. Every part is base64, so the boundary can't appear in one.
+BOUNDARY := ==============wsl-user-data==
 
 .DELETE_ON_ERROR:
-.PHONY: build version clean
+.PHONY: build clean
 
 build: $(USER_DATA)
 
-# Every fragment is a prerequisite, so a change to any of them rebuilds every user-data.
-dist/%.user-data: src/manifests/%.json $(FRAGMENTS) scripts/user-data.sh scripts/manifest.jq
-	scripts/user-data.sh $< $@
-
-# Prints the version of the release, which every manifest shares. Fails when they differ.
-version:
-	@jq -nr -f scripts/version.jq $(MANIFESTS)
+# The folder is a prerequisite too, because its time changes when a fragment is added, removed or renamed. make-mime
+# names each part after the path it's given, so it runs in the fragments' folder. A failed build leaves no user-data,
+# old or new, and no temporary file.
+$(USER_DATA): $(FRAGMENTS) src/fragments Makefile
+	mkdir -p $(@D)
+	rm -f $@ $@.tmp
+	cd src/fragments && cloud-init devel make-mime $(foreach f,$(FRAGMENTS),--attach $(notdir $(f)):$(call part_type,$(f))) > "$(CURDIR)/$@.tmp" || { rm -f "$(CURDIR)/$@.tmp"; exit 1; }
+	sed -E 's/={15}[0-9]+==/$(BOUNDARY)/g' $@.tmp > $@ || { rm -f $@.tmp; exit 1; }
+	rm $@.tmp
 
 clean:
 	rm -rf dist

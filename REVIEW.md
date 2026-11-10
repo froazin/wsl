@@ -2,18 +2,18 @@
 
 What CI's Claude code review flags on pull requests (PRs) in this repository, at what severity and what it skips. Rules for all work are in `CLAUDE.md`, and a change that breaks one of them is a finding. This file adds only what's specific to reviews.
 
-Judge the config in `src/` as what ships: it's built into each release's files, which people download onto their own machines, where the user-data runs as root on an instance's first boot. Judge the tooling in the `Makefile` and `scripts/`, the end-to-end scripts and the workflows by whether they still build, check and release the config correctly, not by the standards of the config itself.
+Judge the config in `src/` as what ships: it's built into each release's user-data, which people download onto their own machines, where the user-data runs as root on an instance's first boot. Judge the tooling in the `Makefile`, the end-to-end scripts and the workflows by whether they still build, check and release the config correctly, not by the standards of the config itself.
 
 ## What Important means here
 
 Mark a finding Important only when the change would do one of these:
 
-- Make the user-data fail to render, fail `cloud-init schema` or fail on a first boot. For example: a package name that a distro whose manifest lists the fragment doesn't have, which fails the whole package install; a Jinja tag that isn't at column 0; a fragment that uses a Jinja variable it doesn't set itself, because cloud-init renders each part on its own; `{{`, `{%` or `{#` inside embedded shell; a `users` or non-deferred `write_files` entry that needs a package or a group a package creates; `power_state` or `package_reboot_if_required`; `systemctl --user` in `runcmd`; or a `[user]` or `[time]` section in `/etc/wsl.conf`. `.claude/rules/cloud-init.md` lists the facts behind these.
+- Make the user-data fail to render, fail `cloud-init schema` or fail on a first boot. For example: a package name that Ubuntu doesn't have, which fails the whole package install; a Jinja tag that isn't at column 0; a fragment that uses a Jinja variable it doesn't set itself, because cloud-init renders each part on its own; `{{`, `{%` or `{#` inside embedded shell; a `users` or non-deferred `write_files` entry that needs a package or a group a package creates; `power_state` or `package_reboot_if_required`; `systemctl --user` in `runcmd`; or a `[user]` or `[time]` section in `/etc/wsl.conf`. `.claude/rules/cloud-init.md` lists the facts behind these.
 - Let a meta-data value reach a shell command without the validation `docs/meta-data.md` describes, write a value into `~/.gitconfig` without the `gitval` macro, or report a rejected value other than with `printf %s` and an ASCII-escaped `tojson`.
 - Put identifying data into the repository, such as a real name, email, username, signing key, hostname or `/mnt/c/Users/<name>/` path. The repository is public, and identifying values belong in the user's meta-data.
 - Fetch something at boot over plain HTTP, run a downloaded script as root that could run as the user, or replace the embedded GitHub CLI apt key with one fetched at boot.
 - Change the `packages` list without keeping it in step with the dotfiles modules' dependencies, as `CLAUDE.md` says.
-- Change what's built into `dist/`, such as a fragment a manifest lists or the fragments a manifest lists, without bumping the `version` in every manifest in `src/manifests/`, or with a bump to the wrong part. The "How the version is decided" section of `docs/releases.md` says which part to bump, and when `main`'s version hasn't been released yet, so no bump is needed. Without the bump, the release workflow releases nothing, and users never get the change. Compare the version with `main`'s.
+- Make the build give a different file for the same fragments, such as by dropping the fixed MIME boundary in the `Makefile`. Every push would then make a release, as `docs/releases.md` explains.
 - Make the README's install steps wrong, or make a design doc, the README, `CONTRIBUTING.md`, `CLAUDE.md` or this file say something about the code that's false after the change, so that someone following it would do the wrong thing.
 - Make CI or the release workflow skip a check that the change needs, such as a `!` pattern added to `paths` in `.github/workflows/ci.yml` or `.github/workflows/release.yml` that skips a path the checks read or that changes what an instance runs. Drop or narrow a check that the `checks` job or the release workflow's `build` or `e2e` job runs, or let a job run when one it needs failed. `docs/ci.md` and `docs/releases.md` describe how they should work.
 - Give a job other than `release` in `release.yml` a token that can write, or let the `release` job check out or run the repository's code. `docs/releases.md` describes why.
@@ -32,7 +32,7 @@ Every comment must be resolved before the PR can merge, so report Nits sparingly
 
 ## Don't report
 
-- Anything `make build`, `make version`, ShellCheck or shfmt reports. CI runs them before the review.
+- Anything `make build`, ShellCheck or shfmt reports. CI runs them before the review.
 - The PR's title and description.
 - A limit that a design doc's Limits section records, unless the change makes it worse.
 - An issue that a resolved review thread on the PR already raises, whatever its replies say. Resolving a thread settles it.
@@ -45,8 +45,8 @@ These are the rules that no tool, test or check enforces.
 
 - A new `runcmd` entry that installs something for the user runs with `runuser -l <user>`, so `HOME` is the user's, and uses the tool's official installer, so the tool can update itself.
 - Each install in `runcmd` is its own entry, so one failure doesn't stop the rest.
-- A fragment added to a manifest, or moved within one, keeps `runcmd` entries that depend on each other in order, since the fragments merge in the manifest's order. `docs/provisioning.md` says which do.
-- A change to a fragment in `src/fragments/` is right for every distro whose manifest lists it, and a fragment only one manifest lists holds only what's specific to that distro, as `docs/distros.md` says. A near-copy of a shared fragment for one distro is a Nit at most, unless it drops something the shared one does.
+- A fragment that's added or renumbered keeps `runcmd` entries that depend on each other in order, since the fragments merge in the order of their numbers. `docs/provisioning.md` says which do.
+- A new fragment is named `<NN>-<feature>.user-data` with two digits, as `docs/build.md` says, so it sorts where it should.
 - A new `write_files` entry in the user's home is deferred, because `write_files` runs before `users` creates the user.
 - A new user-facing behaviour is in the README's "What it sets up" and in `docs/provisioning.md`.
 - Something new the user-data sets up has a check in `.github/scripts/check-instance.sh`. A missing check is a Nit.

@@ -4,11 +4,5 @@
 		"*.vendor-data": "jinja-yaml",
 		"*.meta-data": "jinja-yaml",
 		"*.wslconfig": "jinja-toml"
-	},
-	"json.schemas": [
-		{
-			"fileMatch": ["/src/manifests/*.json"],
-			"url": "./schemas/manifest.schema.json"
-		}
-	]
+	}
 }
