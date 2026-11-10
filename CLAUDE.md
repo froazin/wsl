@@ -1,6 +1,6 @@
 # WSL
 
-A reusable cloud-init config that builds an Ubuntu WSL instance for development from scratch, and installs the [froazin/dotfiles](https://github.com/froazin/dotfiles) into it. It's written as numbered cloud-config fragments in `src/fragments/`, joined in order into the one user-data file each GitHub release publishes. The repository is public, and people copy from it, so it stays generic.
+A reusable cloud-init config that builds an Ubuntu WSL instance for development from scratch, and installs the [froazin/dotfiles](https://github.com/froazin/dotfiles) into it. It's written as numbered cloud-config fragments in `src/`, joined in order into the one user-data file each GitHub release publishes. The repository is public, and people copy from it, so it stays generic.
 
 ## Contents
 
@@ -12,12 +12,12 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 
 | Path | Holds |
 | --- | --- |
-| `src/fragments/` | Every cloud-config fragment, one per feature, named `<NN>-<feature>.user-data` and merged in the order of their numbers. Before you add, change or renumber one, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
+| `src/` | Every cloud-config fragment, one per feature, named `<NN>-<feature>.user-data` and merged in the order of their numbers. Before you add, change or renumber one, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
 | `dist/` | `Ubuntu.user-data`, the file each release publishes. `make build` writes it, and Git ignores it |
 | `Makefile` | `make build`, which joins the fragments into `dist/Ubuntu.user-data` with `cloud-init devel make-mime` and a fixed MIME boundary, and `make clean`. Before you change it, read [docs/build.md](docs/build.md). Nothing validates the rendered user-data |
 | `docs/` | Design docs for engineers changing the config |
 | `.github/workflows/ci.yml` | CI on pull requests: the checks and Claude's code review. Before you change it, read [docs/ci.md](docs/ci.md) |
-| `.github/workflows/release.yml`, `.github/scripts/` | The release workflow on `main`, with the end-to-end tests on Windows runners and their scripts. Before you change them, read [docs/releases.md](docs/releases.md) |
+| `.github/workflows/release.yml`, `.github/scripts/` | The release workflow on `main`, with the end-to-end test on a Windows runner, and its scripts. Before you change them, read [docs/releases.md](docs/releases.md) |
 | `.github/dependabot.yml` | The weekly action updates |
 | `REVIEW.md` | Instructions for CI's Claude code review: what counts as Important, the Nit cap, what to skip, what to always check and the evidence a finding needs |
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |

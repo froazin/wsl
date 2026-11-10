@@ -7,7 +7,8 @@ merge_how:
   - name: dict
     settings: [no_replace, recurse_list]
 
-{% set user = ds.meta_data.username or '' %}
+{# The username from the meta-data, or wsluser when it gives none. #}
+{% set user = ds.meta_data.username or 'wsluser' %}
 {% macro workspace(repo) %}workspaces/{{ repo.split('://', 1)[-1].removesuffix('.git') }}{% endmacro %}
 {% set nvm_repo = 'https://github.com/nvm-sh/nvm.git' %}
 {% set nvm_dir = '~/' ~ workspace(nvm_repo) %}
@@ -17,7 +18,6 @@ packages:
   - make
   - shellcheck
   - shfmt
-{% if user %}
 
 runcmd:
   # Official installers, run as the user so they can update themselves. The
@@ -36,4 +36,3 @@ runcmd:
   # self-update; rerunning this updates it. tar -m stamps the install time,
   # which is how zsh knows to regenerate its completion.
   - [runuser, -l, "{{ user }}", -c, 'v="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/anthropics/anthropic-cli/releases/latest)" && v="${v##*/v}" && case "$(uname -m)" in x86_64) a=amd64 ;; aarch64) a=arm64 ;; esac && mkdir -p ~/.local/bin && curl -fsSL "https://github.com/anthropics/anthropic-cli/releases/download/v$v/ant_${v}_linux_$a.tar.gz" | tar -xzmf - -C ~/.local/bin ant']
-{% endif %}

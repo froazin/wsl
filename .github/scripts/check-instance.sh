@@ -5,12 +5,13 @@
 #
 # Usage: check-instance.sh [username [git-name]]
 #
-# Without arguments, it reads them from E2E_USER and E2E_GIT_NAME. Leave the
-# username empty for an instance whose meta-data has none.
+# Without arguments, it reads them from E2E_USER and E2E_GIT_NAME. An empty
+# username is wsluser, the user the user-data creates when the meta-data gives
+# none.
 
 set -u
 
-user="${1:-${E2E_USER:-}}"
+user="${1:-${E2E_USER:-wsluser}}"
 git_name="${2:-${E2E_GIT_NAME:-}}"
 failed="false"
 
@@ -76,11 +77,6 @@ has_uid()
     [ "$(id -u "$1")" = "$2" ]
 }
 
-no_uid()
-{
-    ! getent passwd "$1"
-}
-
 git_config_is()
 {
     [ "$(runuser -u "$1" -- git config --global --get "$2")" = "$3" ]
@@ -129,36 +125,32 @@ check "libvirt's default network autostarts" network_autostarts
 
 # Root's shell and dotfiles
 check "root's login shell is zsh" login_shell_is root /usr/bin/zsh
-check "new users get zsh" grep -qx 'DSHELL=/usr/bin/zsh' /etc/adduser.conf
 check "the dotfiles are installed for root" test -e /root/.zshrc
 
-if [ -z "$user" ]; then
-    check "no user with uid 1000 exists" no_uid 1000
-else
-    home="/home/$user"
+# The user
+home="/home/$user"
 
-    check "$user has uid 1000" has_uid "$user" 1000
-    check "$user's login shell is zsh" login_shell_is "$user" /usr/bin/zsh
-    for group in sudo kvm libvirt users; do
-        check "$user is in $group" in_group "$user" "$group"
-    done
-    check "$user has passwordless sudo" runuser -u "$user" -- sudo -n true
+check "$user has uid 1000" has_uid "$user" 1000
+check "$user's login shell is zsh" login_shell_is "$user" /usr/bin/zsh
+for group in sudo kvm libvirt users; do
+    check "$user is in $group" in_group "$user" "$group"
+done
+check "$user has passwordless sudo" runuser -u "$user" -- sudo -n true
 
-    if [ -n "$git_name" ]; then
-        check "git reads user.name back for $user" git_config_is "$user" user.name "$git_name"
-    fi
-    check "git uses gh for github.com" gh_is_git_credential_helper "$user"
-
-    check "$user's workspaces exist" test -d "$home/workspaces"
-    check "the dotfiles are cloned for $user" test -d "$home/workspaces/github.com/froazin/dotfiles/.git"
-    check "the dotfiles are installed for $user" test -e "$home/.zshrc"
-
-    for tool in .local/bin/uv .local/bin/claude .local/bin/ant .local/bin/biome .pulumi/bin/pulumi; do
-        check "$user has ~/$tool" test -x "$home/$tool"
-    done
-    check "$user has nvm" test -s "$home/.nvm/nvm.sh"
-    check "$user has the gh act extension" test -d "$home/.local/share/gh/extensions/gh-act"
+if [ -n "$git_name" ]; then
+    check "git reads user.name back for $user" git_config_is "$user" user.name "$git_name"
 fi
+check "git uses gh for github.com" gh_is_git_credential_helper "$user"
+
+check "$user's workspaces exist" test -d "$home/workspaces"
+check "the dotfiles are cloned for $user" test -d "$home/workspaces/github.com/froazin/dotfiles/.git"
+check "the dotfiles are installed for $user" test -e "$home/.zshrc"
+
+for tool in .local/bin/uv .local/bin/claude .local/bin/ant .local/bin/biome .pulumi/bin/pulumi; do
+    check "$user has ~/$tool" test -x "$home/$tool"
+done
+check "$user has nvm" test -s "$home/.nvm/nvm.sh"
+check "$user has the gh act extension" test -d "$home/.local/share/gh/extensions/gh-act"
 
 if [ "$failed" = "true" ]; then
     exit 1

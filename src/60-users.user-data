@@ -1,0 +1,25 @@
+## template: jinja
+#cloud-config
+
+merge_how:
+  - name: list
+    settings: [append]
+  - name: dict
+    settings: [no_replace, recurse_list]
+
+{# The username from the meta-data, or wsluser when it gives none. #}
+{% set user = ds.meta_data.username or 'wsluser' %}
+
+# Always created, so the OOBE never asks for a user.
+users:
+  - name: {{ user }}
+    uid: 1000
+    shell: /usr/bin/zsh
+    groups: [adm, cdrom, sudo, dip, plugdev, users, kvm]
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+
+runcmd:
+  # Root too; `users:` skips existing users. A login shell that does not exist
+  # would lock root out.
+  - [sh, -c, 'if [ -x /usr/bin/zsh ]; then usermod -s /usr/bin/zsh root; fi']

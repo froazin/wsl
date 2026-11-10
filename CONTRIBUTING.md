@@ -34,7 +34,7 @@ shellcheck .github/scripts/*.sh
 shfmt -d .
 ```
 
-- `make build` joins every fragment in `src/fragments/`, in the order of their numbers, into `dist/Ubuntu.user-data`. It only rebuilds it when a fragment is added, changed, removed or renamed, or the `Makefile` changes, and the same fragments build the same file with the same cloud-init. `make clean` deletes `dist/`. Edit `src/fragments/`, never `dist/`.
+- `make build` joins every fragment in `src/`, in the order of their numbers, into `dist/Ubuntu.user-data`. It only rebuilds it when a fragment is added, changed, removed or renamed, or the `Makefile` changes, and the same fragments build the same file with the same cloud-init. `make clean` deletes `dist/`. Edit `src/`, never `dist/`.
 - There are no unit tests, and nothing validates the rendered user-data. [docs/build.md](docs/build.md#validation) says what `make build` does and doesn't check.
 - shfmt reads its options from `.editorconfig`, so run it without formatting flags: any flag such as `-i` makes it ignore `.editorconfig`.
 
