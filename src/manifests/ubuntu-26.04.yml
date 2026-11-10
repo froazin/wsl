@@ -3,7 +3,7 @@
 
 name: Ubuntu-26.04
 version: 0.0.1
-description: This is a Cloud Init configuration for Ubuntu 26.04 LTS running on WSL.
+description: The cloud-init user-data for a development instance of Ubuntu 26.04 LTS on WSL.
 fragments:
   0: base
   1: windows

@@ -139,10 +139,10 @@ flowchart TD
 
 ## Security and privacy
 
-- The repository is public. The fragments hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only account name in it is the dotfiles' repository URL.
+- The repository is public. The fragments hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only personal account name in them is the dotfiles' repository URL.
 - Only validated meta-data values reach shell commands. `username` is the exception: it's trusted as written (see [WSL meta-data](meta-data.md#limits)).
 - The GitHub CLI apt key is embedded in `github-cli`, with its fingerprint in a comment, rather than fetched at boot.
-- `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user. Their integrity rests on those hosts and TLS.
+- `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user, and nvm is cloned over HTTPS and its `install.sh` run as the user. Their integrity rests on those hosts and TLS.
 - `/usr/local/bin/start` passes its target to PowerShell in an environment variable through `WSLENV`, never in the command, so the target is never parsed as code.
 - The user named by `username` gets passwordless sudo, and their password is locked.
 
@@ -159,9 +159,9 @@ flowchart TD
 
 ## Validation
 
-Nothing checks the merged user-data yet: the mock meta-data cases went with the old build, and will be rebuilt for the YAML manifests, as [Build](build.md#validation) says. `make build` only checks each manifest against its schema.
+Nothing checks the merged user-data before a release, as [Build](build.md#validation) says. `make build` only checks each manifest against its schema and that the fragments it lists exist.
 
-Even then, a mock check doesn't prove a real first boot. Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
+Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
 
 ## Limits
 

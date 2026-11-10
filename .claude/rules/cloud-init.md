@@ -6,25 +6,30 @@ paths:
 # WSL cloud-init (`src/`)
 
 The user-data is written as cloud-config fragments, all in `fragments/`.
-`manifests/<distro>.yml` names a distro and lists every fragment in its
-user-data, keyed by its place in the merge. `make build` joins each
-manifest's fragments with cloud-init's `create_mime_message` into
+`manifests/<distro>.yml` names a distro, gives its version and lists every
+fragment in its user-data, keyed by its place in the merge. `make build`
+joins each manifest's fragments with cloud-init's `create_mime_message` into
 `dist/<name>.user-data`, a MIME multipart file with one part per fragment.
-Edit `src/`, never `dist/`. Each release
-publishes them; users download one to `%USERPROFILE%\.cloud-init\` and write
-the meta-data beside it from the example in `README.md`, matching an instance
-named after the distro, such as `Ubuntu-26.04`, the default name from
+Edit `src/`, never `dist/`. Each release publishes the files in `dist/`;
+users download one to `%USERPROFILE%\.cloud-init\` and write the meta-data
+beside it from the example in `README.md`, matching an instance named after
+the distro, such as `Ubuntu-26.04`, the default name from
 `wsl --install Ubuntu-26.04`. It runs once, on first boot, and Ubuntu's OOBE
 (`/usr/lib/wsl/wsl-setup`) waits for it. Read `docs/build.md` before you add,
 rename or move a fragment, and `docs/distros.md` before you change a
 manifest or add a fragment only one distro lists. Share fragments by default.
 
+A change to what's built into `dist/` bumps the `version` in every
+manifest, or it isn't released. Read
+[docs/releases.md](../../docs/releases.md#how-the-version-is-decided) for
+which part to bump.
+
 ## Keep it native
 
-Prefer plain cloud-init modules and semantics over custom scripts. Identifying
-values come only from `<InstanceName>.meta-data`, read in each fragment that uses them as
-`ds.meta_data.*`. Do not add loaders that read other files from the Windows
-side.
+Prefer plain cloud-init modules and semantics over custom scripts.
+Identifying values come only from `<InstanceName>.meta-data`, read in each
+fragment that uses them as `ds.meta_data.*`. Don't add loaders that read
+other files from the Windows side.
 
 ## Facts that constrain the design
 
@@ -58,9 +63,9 @@ side.
   enable user units with `systemctl --global enable`. The first
   `runuser -l <user>` entry starts the user's manager (pam_systemd), which
   reads the global wants only when it starts, so global enables go in an
-  earlier fragment.
-  `--global` also reaches root's user manager, which `sudo su` starts; keep a
-  unit out of it with a `ConditionUser=!root` drop-in.
+  earlier fragment. `--global` also reaches root's user manager, which
+  `sudo su` starts; keep a unit out of it with a `ConditionUser=!root`
+  drop-in.
 - Module order: init stage runs `write_files` and `users`; final stage runs
   packages, deferred `write_files`, then `runcmd` (a `#!/bin/sh` script with
   no `set -e`, so entries are independent). Anything that needs a package or
@@ -90,16 +95,16 @@ side.
 
 The repo is public. No usernames, emails, signing keys, hostnames or
 `/mnt/c/Users/<name>/` paths in any file here; they belong in the user's
-private meta-data. Nothing checks for such a path until validation is
-rebuilt, so look for one yourself. The README's meta-data example is public too: identifying values
+private meta-data. Nothing checks for such a path, so look for one
+yourself. The README's meta-data example is public too: identifying values
 stay empty, and only generic defaults such as `vscode_extensions` and
 `gh_extensions` are filled in. A key added to the user-data goes into the
 example.
 
-## Validate
+## Check a change
 
-There's no validation yet: the `validate-user-data` skill is stale, and
-`scripts/build/cases.py` went with the old build. After every change, run
-`make build`, and tell the user that the user-data couldn't be validated.
-Note any new meta-data key or conditional, so a case can be added for it
-once validation is rebuilt.
+Nothing renders the user-data or runs `cloud-init schema` on it before a
+release. After every change, run `make build`, which only checks each
+manifest against its schema and that its fragments exist, and tell the user
+that the user-data couldn't be validated. The end-to-end tests install it on
+a first boot only when a release is due.

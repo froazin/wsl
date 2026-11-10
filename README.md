@@ -161,7 +161,7 @@ PROFILE=/dev/null bash install.sh
 cd
 curl -fsSL https://claude.ai/install.sh | bash
 v="$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/anthropics/anthropic-cli/releases/latest)"; v="${v##*/v}"
-case "$(uname -m)" in aarch64) a=arm64 ;; *) a=amd64 ;; esac
+case "$(uname -m)" in x86_64) a=amd64 ;; aarch64) a=arm64 ;; esac
 mkdir -p ~/.local/bin && curl -fsSL "https://github.com/anthropics/anthropic-cli/releases/download/v$v/ant_${v}_linux_$a.tar.gz" | tar -xzmf - -C ~/.local/bin ant
 # The extensions in your meta-data's vscode_extensions, for example:
 code --install-extension Anthropic.claude-code --install-extension ms-python.python
@@ -171,7 +171,6 @@ git clone https://github.com/froazin/dotfiles.git ~/workspaces/github.com/froazi
 # Until the ~/.zshenv from the dotfiles exists, the installer can't see tools in ~/.local/bin.
 PATH="$HOME/.local/bin:$HOME/.pulumi/bin:$PATH" sh ~/workspaces/github.com/froazin/dotfiles/src/install.sh
 ```
-
 
 ### Testing a change
 

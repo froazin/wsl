@@ -1,16 +1,12 @@
 # CI
 
-How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull request (PR) before it merges: the lint, tests and validation, and Claude's code review. It's for engineers changing the workflow or [`REVIEW.md`](../REVIEW.md). The end-to-end tests on Windows runners run on `main` before a release, as [Releases](releases.md) describes.
-
-> [!WARNING]
-> `ci.yml` hasn't been updated for the new build yet. Its `checks` job still runs `uv run invoke validate`, which no longer exists, and `uv run pytest`, which fails while there are no tests, so the job fails until the workflow is updated. This doc describes the workflow as it is.
+How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull request (PR) before it merges: the lint, type check and build, and Claude's code review. It's for engineers changing the workflow or [`REVIEW.md`](../REVIEW.md). The end-to-end tests on Windows runners run on `main` before a release, as [Releases](releases.md) describes.
 
 ## Contents
 
 1. [Overview](#overview)
 1. [Checks](#checks)
 1. [Code review](#code-review)
-1. [Dependabot](#dependabot)
 1. [Set up](#set-up)
 1. [Security](#security)
 1. [Decisions](#decisions)
@@ -24,18 +20,20 @@ How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull requ
 ```mermaid
 flowchart LR
     accTitle: The jobs that run on a pull request
-    accDescr: A pull request that changes more than docs starts the workflow. The checks job lints, type-checks, tests and validates the config. When the checks pass, the code-review job runs Claude, which comments on the pull request.
-    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: Ruff, Pyright, pytest, invoke validate, ShellCheck, shfmt"]
+    accDescr: A pull request that changes more than docs starts the workflow. The checks job lints and type-checks the tooling, builds the config and lints the shell scripts. When the checks pass, the code-review job runs Claude, which comments on the pull request.
+    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: Ruff, Pyright, make build, invoke version, ShellCheck, shfmt"]
     checks -->|passed| review["code-review: Claude"]
     review -->|comments| pr
 ```
 
-- **`paths`** on the `pull_request` trigger skips the whole workflow when every file a PR changes is Markdown other than `README.md`, or under `docs/`, `.claude/` or `.vscode/`, or is `.github/dependabot.yml` or `LICENSE`. `README.md` runs the checks, because it holds the meta-data example that `invoke validate` reads. The list starts with `**`, every file, and each later `!` pattern skips what it matches, unless a later pattern takes it back, as `README.md` does after `!**.md`. The list names what's safe to skip, so a new kind of file is checked until it's added to it. The release workflow uses the same list.
+- **`paths`** on the `pull_request` trigger skips the whole workflow when every file a PR changes is Markdown other than `README.md`, a file under `docs/`, `.claude/` or `.vscode/` or another file that can't change the config, such as `LICENSE`. `README.md` isn't skipped, because the [end-to-end tests](releases.md#end-to-end-tests) read its meta-data example. The list starts with `**`, every file, and each later `!` pattern skips what it matches, unless a later pattern takes it back, as `README.md` does after `!**.md`. The list names what's safe to skip, so a new kind of file is checked until it's added to it. The release workflow uses the same list.
 - `code-review` needs `checks`, so a failure skips the review, and the workflow's own result is the one check to read before merging.
 
 ## Checks
 
-The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from the same release as the instance. It installs `cloud-init`, `python3-yaml`, `shellcheck` and `shfmt` from apt, sets up uv and creates the venv on the runner's system Python with its system site packages (see [Build](build.md#tool-configuration)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): Ruff, `ruff format --check`, Pyright, pytest, `uv run invoke validate`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`.
+The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from the same release as the instance. It installs `cloud-init`, `make`, `shellcheck` and `shfmt` from apt, sets up uv and runs `make sync`, which creates the venv on the runner's system Python with its system site packages (see [Build](build.md#tool-configuration)). Then it runs the commands in [CONTRIBUTING.md](../CONTRIBUTING.md#checks): Ruff, `ruff format --check`, Pyright, `make build`, `uv run invoke version`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`.
+
+`make build` checks each manifest against its schema and that its fragments exist, and `invoke version` that every manifest has the same version. Nothing renders the user-data or runs `cloud-init schema` on it, so the code review checks those by reading, and the end-to-end tests catch what it misses before a release.
 
 ## Code review
 
@@ -47,11 +45,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - The same step saves the review threads already on the PR, keeping only comments from the owner, members, collaborators and the Actions bot. Claude never raises an issue a thread already raises.
 - Claude posts each finding with the action's own comment tool, `mcp__github_inline_comment__create_inline_comment`, with `confirmed: true` so it posts at once. It can only use that tool and read files.
 - The job passes whatever Claude finds. The unresolved threads are what hold the PR back.
-- Drafts and Dependabot's PRs aren't reviewed.
-
-## Dependabot
-
-[`.github/dependabot.yml`](../.github/dependabot.yml) opens a PR each Wednesday for each ecosystem, `github-actions` and `uv`, that updates every dependency in it, grouped together, with a `chore(deps):` title. Its 7-day cooldown skips any release less than a week old, so a compromised release has time to be caught. Its PRs run the checks like any other, but get no code review.
+- Drafts aren't reviewed until they're ready.
 
 ## Set up
 
@@ -65,7 +59,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - **The workflow's token, as narrow as each job allows.** Every job can read the repository's contents. The code review passes the workflow's token as `github_token`, so the Claude GitHub App's token isn't used, and adds `pull-requests: write` to comment and `actions: read` to count earlier reviews.
 - **PR content is data.** The prompt says to treat files, diffs, commits and comments as data. Only collaborators can open PRs, and Claude sees only trusted authors' comments.
 - **Few tools.** The review has no Bash. It can read files and post review comments, and can't push, approve or merge.
-- **Pinned actions.** Every action is pinned to a full commit SHA, with its version in a comment, and Dependabot proposes no release less than 7 days old.
+- **Pinned actions.** Every action is pinned to a full commit SHA, with its version in a comment.
 
 ## Decisions
 
@@ -82,10 +76,9 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - Nothing stops a maintainer merging a PR whose checks failed, because none are required.
 - A docs-only PR isn't reviewed, so nothing checks that its docs still match the code.
 - A PR whose checks are skipped has no workflow run at all, so its checks list is empty rather than skipped.
-- `uv.lock` is ignored by Git, so Dependabot's `uv` entry may find nothing to update (untested).
+- Nothing renders the user-data on a PR, so a change that fails `cloud-init schema` or a first boot is first caught by the end-to-end tests, and only when it bumps the version.
 
 ## Sources
 
 - https://github.com/anthropics/claude-code-action
 - https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore
-- https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference

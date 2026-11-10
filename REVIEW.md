@@ -13,6 +13,7 @@ Mark a finding Important only when the change would do one of these:
 - Put identifying data into the repository, such as a real name, email, username, signing key, hostname or `/mnt/c/Users/<name>/` path. The repository is public, and identifying values belong in the user's meta-data.
 - Fetch something at boot over plain HTTP, run a downloaded script as root that could run as the user, or replace the embedded GitHub CLI apt key with one fetched at boot.
 - Change the `packages` list without keeping it in step with the dotfiles modules' dependencies, as `CLAUDE.md` says.
+- Change what's built into `dist/`, such as a fragment a manifest lists or the fragments a manifest lists, without bumping the `version` in every manifest in `src/manifests/`, or with a bump to the wrong part. The "How the version is decided" section of `docs/releases.md` says which part to bump, and when `main`'s version hasn't been released yet, so no bump is needed. Without the bump, the release workflow releases nothing, and users never get the change. Compare the version with `main`'s.
 - Make the README's install steps wrong, or make a design doc, the README, `CONTRIBUTING.md`, `CLAUDE.md` or this file say something about the code that's false after the change, so that someone following it would do the wrong thing.
 - Make CI or the release workflow skip a check that the change needs, such as a `!` pattern added to `paths` in `.github/workflows/ci.yml` or `.github/workflows/release.yml` that skips a path the checks read or that changes what an instance runs. Drop or narrow a check that the `checks` job or the release workflow's `build` or `e2e` job runs, or let a job run when one it needs failed. `docs/ci.md` and `docs/releases.md` describe how they should work.
 - Give a job other than `release` in `release.yml` a token that can write, or let the `release` job check out or run the repository's code. `docs/releases.md` describes why.
@@ -31,7 +32,7 @@ Every comment must be resolved before the PR can merge, so report Nits sparingly
 
 ## Don't report
 
-- Anything Ruff, Pyright, pytest, ShellCheck or shfmt reports. CI runs them before the review.
+- Anything Ruff, Pyright, `make build`, ShellCheck or shfmt reports. CI runs them before the review.
 - The PR's title and description.
 - A limit that a design doc's Limits section records, unless the change makes it worse.
 - An issue that a resolved review thread on the PR already raises, whatever its replies say. Resolving a thread settles it.
@@ -45,7 +46,7 @@ These are the rules that no tool, test or check enforces.
 - A new `runcmd` entry that installs something for the user runs with `runuser -l <user>`, so `HOME` is the user's, and uses the tool's official installer, so the tool can update itself.
 - Each install in `runcmd` is its own entry, so one failure doesn't stop the rest.
 - A fragment added to a manifest, or moved within one, keeps `runcmd` entries that depend on each other in order, since the fragments merge in the manifest's order. `docs/provisioning.md` says which do.
-- A change to a shared fragment in `src/fragments/` is right for every distro whose manifest lists it, and a fragment in a distro's own folder holds only what's specific to that distro, as `docs/distros.md` says. A copy of a shared fragment in a distro's folder is a Nit at most, unless it drops something the shared one does.
+- A change to a fragment in `src/fragments/` is right for every distro whose manifest lists it, and a fragment only one manifest lists holds only what's specific to that distro, as `docs/distros.md` says. A near-copy of a shared fragment for one distro is a Nit at most, unless it drops something the shared one does.
 - A new `write_files` entry in the user's home is deferred, because `write_files` runs before `users` creates the user.
 - A new user-facing behaviour is in the README's "What it sets up" and in `docs/provisioning.md`.
 - Something new the user-data sets up has a check in `.github/scripts/check-instance.sh`. A missing check is a Nit.

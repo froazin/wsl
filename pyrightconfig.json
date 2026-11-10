@@ -1,6 +1,5 @@
 {
   "typeCheckingMode": "standard",
   "exclude": ["**/__pycache__", "**/.*"],
-  "pythonVersion": "3.14",
-  "extraPaths": ["pkg"]
+  "pythonVersion": "3.14"
 }

@@ -44,7 +44,7 @@ A manifest is YAML. [`schemas/manifest.schema.json`](../schemas/manifest.schema.
 ```yaml
 name: Ubuntu-26.04
 version: 0.0.1
-description: This is a Cloud Init configuration for Ubuntu 26.04 LTS running on WSL.
+description: The cloud-init user-data for a development instance of Ubuntu 26.04 LTS on WSL.
 fragments:
   0: base
   1: windows
@@ -54,7 +54,7 @@ fragments:
 | Field | Type | Rules |
 | --- | --- | --- |
 | `name` | String | Required. The name `wsl --install` gives the instance, such as `Ubuntu-26.04`, because the WSL datasource finds `<instance>.user-data` by it. Letters, digits, `.`, `_` and `-`, starting with a letter or digit |
-| `version` | String | Required. A Semantic Versioning 2.0.0 version without a `v`, such as `0.1.0`. Nothing reads it yet |
+| `version` | String | Required. A Semantic Versioning 2.0.0 version without a `v`, such as `0.0.1`. It's the version of the release the user-data is published in, so every manifest has the same one. [Releases](releases.md#how-the-version-is-decided) says when to bump it, and which part |
 | `description` | String | Required, and not empty |
 | `fragments` | Mapping | Required, with at least one entry. Each key is a whole number with no leading zero, and sets the fragment's place in the merge. Each value is a fragment's file name without `.user-data`, in lowercase words joined by `-`, starting with a letter, such as `github-cli` |
 
@@ -86,7 +86,7 @@ Every fragment follows the same rules: it keeps the shared `merge_how`, and sets
 ## Add a distro
 
 1. Check that the distribution's WSL image runs cloud-init with its WSL datasource on first boot, and find its name in `wsl --list --online`.
-1. Create `src/manifests/<distro>.yml`, with its `name`, `version` and `description`, and the shared fragments that suit it.
+1. Create `src/manifests/<distro>.yml`, with its `name` and `description`, and the shared fragments that suit it. Give it the same `version` as the other manifests, and bump them all, as a new feature.
 1. Add a fragment of its own for anything that differs, as [Shared or distro fragments](#shared-or-distro-fragments) says.
 1. Run `make build <distro>` and check that `dist/<name>.user-data` is written.
 1. Add the distro to the README's [supported distros](../README.md#supported-distros), and to `check-instance.sh` if it sets up something different.

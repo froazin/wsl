@@ -11,7 +11,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from pkg.errors import BuildError
-from pkg.manifest import Manifest
+from pkg.manifest import load_manifests, release_version
 
 ROOT = Path(__file__).parent
 MANIFESTS_SCHEMA = ROOT / "schemas" / "manifest.schema.json"
@@ -20,35 +20,34 @@ FRAGMENTS_SRC = ROOT / "src" / "fragments"
 DIST_DIR = ROOT / "dist"
 
 
-@task(
-    help={
-        "filter": "Filters to only the manifests whose name matches this string. Case doesn't matter.",
-    }
-)
-def build(_: Context, filter: str | None = None):
+def _check_sources() -> None:
     if not MANIFESTS_SCHEMA.is_file():
         raise Exit(f"{MANIFESTS_SCHEMA} not found.", code=1)
 
     if not MANIFESTS_SRC.is_dir():
         raise Exit(f"{MANIFESTS_SRC} not found.", code=1)
 
+
+@task(
+    help={
+        "filter": "Filters to only the manifests whose name matches this string. Case doesn't matter.",
+    }
+)
+def build(_: Context, filter: str | None = None):
+    _check_sources()
     try:
-        paths = sorted(p for p in MANIFESTS_SRC.glob("*.y*ml") if not filter or filter.lower() in p.stem.lower())
-
-        if len({p.stem.lower() for p in paths}) != len(paths):
-            raise BuildError("Duplicate manifest files found.")
-
-        if not paths:
-            raise BuildError(
-                f"No manifests in {MANIFESTS_SRC} match {filter}." if filter else f"No manifests in {MANIFESTS_SRC}."
-            )
-
-        manifests = [Manifest.from_file(p, FRAGMENTS_SRC, schema=MANIFESTS_SCHEMA) for p in paths]
-
-        if len({m.name.lower() for m in manifests}) != len(manifests):
-            raise BuildError("Duplicate manifest names found.")
-
-        for m in manifests:
+        for m in load_manifests(MANIFESTS_SRC, FRAGMENTS_SRC, MANIFESTS_SCHEMA, filter):
             m.build(DIST_DIR)
+    except BuildError as error:
+        raise Exit(str(error), code=1) from error
+
+
+@task
+def version(_: Context):
+    """Prints the manifests' version, which a release is tagged with, without a v."""
+
+    _check_sources()
+    try:
+        print(release_version(load_manifests(MANIFESTS_SRC, FRAGMENTS_SRC, MANIFESTS_SCHEMA)))
     except BuildError as error:
         raise Exit(str(error), code=1) from error

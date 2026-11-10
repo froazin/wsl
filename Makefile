@@ -1,5 +1,5 @@
 UV ?= $(shell command -v uv)
-PYTHON ?= $(realpath $(firstword $(wildcard /usr/libexec/platform-python /usr/bin/python3 /usr/bin/python)))
+PYTHON ?= $(realpath /usr/bin/python3)
 
 .PHONY: venv sync build
 
@@ -19,7 +19,7 @@ venv: .venv/pyvenv.cfg
 # uv has no setting for system site packages, so the venv gets them only when it's created.
 .venv/pyvenv.cfg:
 	$(if $(UV),,$(error uv command not found))
-	$(if $(PYTHON),,$(error No suitable Python interpreter found))
+	$(if $(PYTHON),,$(error /usr/bin/python3 not found: set PYTHON to a Python interpreter))
 	$(UV) venv --system-site-packages --python $(PYTHON)
 
 sync: venv

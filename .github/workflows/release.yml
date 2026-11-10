@@ -1,20 +1,21 @@
 ---
 name: Release
 
-on: {}
-  # push:
-  #   branches:
-  #     - main
-  #   # A change only to the docs can't change the config, so it can't make a release. The same list as the CI workflow's.
-  #   paths:
-  #     - "**"
-  #     - "!**.md"
-  #     - "README.md"
-  #     - "!.claude/**"
-  #     - "!.github/dependabot.yml"
-  #     - "!.vscode/**"
-  #     - "!docs/**"
-  #     - "!LICENSE"
+on:
+  push:
+    branches:
+      - main
+    # A change only to the docs can't change the config, so it can't make a release. The same list as the CI workflow's.
+    # README.md isn't skipped, because the end-to-end tests read its meta-data example.
+    paths:
+      - "**"
+      - "!**.md"
+      - "README.md"
+      - "!.claude/**"
+      - "!.github/dependabot.yml"
+      - "!.vscode/**"
+      - "!docs/**"
+      - "!LICENSE"
 
 permissions:
   contents: read
@@ -26,37 +27,33 @@ concurrency:
 
 jobs:
   build:
-    name: Build and version
+    name: Build
     runs-on: &runs-on ubuntu-26.04
     outputs:
       distros: ${{ steps.distros.outputs.distros }}
       version: ${{ steps.version.outputs.version }}
     steps:
-      # semantic-release reads every commit and tag since the last release, so it needs the whole history.
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          fetch-tags: true
           persist-credentials: false
 
+      # As in the CI workflow, cloud-init brings the jsonschema and yaml packages the build imports.
       - name: Install the tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cloud-init python3-yaml shellcheck
+          sudo apt-get install --yes --no-install-recommends cloud-init make
 
       - name: Set up uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
-      # As in the CI workflow, the venv is built on the runner's system Python, so the validation can import apt's
+      # As in the CI workflow, make sync builds the venv on the runner's system Python, so the build can import apt's
       # cloud-init.
       - name: Install the dev dependencies
-        run: |
-          uv venv --system-site-packages --python /usr/bin/python3
-          uv sync
+        run: make sync
 
-      - name: Build and validate the config
-        run: uv run invoke validate
+      - name: Build the config
+        run: make build
 
       # The end-to-end tests install each distro the build made a user-data for, as a JSON list for their matrix.
       - name: List the distros
@@ -66,31 +63,23 @@ jobs:
           echo "distros=$distros" >> "$GITHUB_OUTPUT"
           echo "Built $distros"
 
-      # Before the first release there's nothing to download, and the folder stays missing. Any other failure fails the
-      # job, so a release is never made because the latest one couldn't be read.
-      - name: Download the latest release
+      # The manifests' version is the release's. A release is due only when no tag has that version yet, so a change
+      # that doesn't bump it releases nothing, and the later jobs are skipped. A failure to read the tags fails the job,
+      # so a release is never made because they couldn't be read.
+      - name: Work out the version
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          releases=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --json tagName --jq length)
-          if [ "$releases" = 0 ]; then
-            echo "There's no release yet."
+          version=$(uv run invoke version)
+          tags=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$version" --jq '.[].ref')
+          if grep -Fxq "refs/tags/v$version" <<< "$tags"; then
+            echo "::notice title=Release::v$version is already released, so there's nothing to release."
+            version=
           else
-            gh release download --repo "$GITHUB_REPOSITORY" --pattern '*' --dir "$RUNNER_TEMP/latest-release"
-            ls -l "$RUNNER_TEMP/latest-release"
-          fi
-
-      # Prints nothing when dist/ is the same as the latest release's files, and then the later jobs are skipped.
-      - name: Work out the version
-        id: version
-        run: |
-          version=$(uv run invoke version --previous "$RUNNER_TEMP/latest-release")
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          if [ -n "$version" ]; then
             echo "::notice title=Release::Releasing v$version."
-          else
-            echo "::notice title=Release::dist/ is the same as the latest release, so there's nothing to release."
           fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Upload the config
         if: steps.version.outputs.version != ''
@@ -182,7 +171,9 @@ jobs:
       - e2e
     if: needs.build.outputs.version != ''
     runs-on: *runs-on
+    # actions: read to find the newest run of this workflow.
     permissions:
+      actions: read
       contents: write
     steps:
       - name: Download the config
@@ -191,16 +182,22 @@ jobs:
           name: dist
           path: dist
 
-      # A newer push's run releases this commit's changes too, so only the head of main is released. That also stops
-      # a re-run of an older run publishing an older config.
+      # A newer run of this workflow releases this commit's changes too, so only the newest run releases. A docs-only
+      # push starts no run, so it doesn't hold a release back. That also stops a re-run of an older run publishing an
+      # older config. A version with a pre-release part, such as 0.1.0-rc.1, is published as a pre-release, which the
+      # README's latest download links skip.
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.build.outputs.version }}
         run: |
-          head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "::notice title=Release::main has moved on to $head, so its run makes the release instead."
+          newest=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch main --event push --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ "$newest" != "$GITHUB_RUN_ID" ]; then
+            echo "::notice title=Release::Run $newest is newer, so it makes the release instead."
             exit 0
           fi
-          gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes
+          prerelease=()
+          if [[ "$VERSION" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes "${prerelease[@]}"

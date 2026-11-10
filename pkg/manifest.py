@@ -59,3 +59,45 @@ class Manifest:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(create_mime_message_from_paths(self.fragments.values()))
         return out
+
+
+def load_manifests(
+    manifests_dir: str | Path, fragments_dir: str | Path, schema: Path, filter: str | None = None
+) -> list[Manifest]:
+    """
+    Loads every manifest in manifests_dir whose file name contains filter, ignoring case, in name order.
+
+    WSL finds a user-data by name without regard to case, so two files, or two names, that differ only in case are an
+    error. Raises a BuildError when there's no manifest to load, or when one can't be loaded.
+    """
+
+    manifests_dir = Path(manifests_dir)
+    paths = sorted(p for p in manifests_dir.glob("*.y*ml") if not filter or filter.lower() in p.stem.lower())
+
+    if len({p.stem.lower() for p in paths}) != len(paths):
+        raise BuildError("Duplicate manifest files found.")
+
+    if not paths:
+        raise BuildError(
+            f"No manifests in {manifests_dir} match {filter}." if filter else f"No manifests in {manifests_dir}."
+        )
+
+    manifests = [Manifest.from_file(p, fragments_dir, schema=schema) for p in paths]
+
+    if len({m.name.lower() for m in manifests}) != len(manifests):
+        raise BuildError("Duplicate manifest names found.")
+
+    return manifests
+
+
+def release_version(manifests: list[Manifest]) -> str:
+    """
+    Returns the version every manifest gives, which is the version of the release they're published in.
+
+    Every distro is released together, under one tag, so raises a BuildError when the manifests' versions differ.
+    """
+
+    versions = sorted({m.version for m in manifests})
+    if len(versions) != 1:
+        raise BuildError(f"Every manifest must have the same version, but they have {', '.join(versions)}.")
+    return versions[0]

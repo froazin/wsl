@@ -7,16 +7,16 @@
   "required": ["name", "version", "description", "fragments"],
   "properties": {
     "name": {
-      "description": "The WSL distribution's name, which is also the default instance name from wsl --install. The user-data only runs on an instance whose meta-data matches it.",
+      "description": "The WSL distribution's name, which is also the default instance name from wsl --install. The WSL datasource reads <name>.user-data only for an instance with this name.",
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
       "examples": ["Ubuntu-26.04"]
     },
     "version": {
-      "description": "The version of the distro's user-data, in Semantic Versioning 2.0.0 without a v prefix.",
+      "description": "The version of the release the distro's user-data is published in, in Semantic Versioning 2.0.0 without a v prefix. Every manifest has the same version. Bump it in every change that changes what's built into dist/.",
       "type": "string",
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\\+([0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*))?$",
-      "examples": ["0.1.0", "1.0.0-rc.1"]
+      "examples": ["0.0.1", "1.0.0-rc.1"]
     },
     "description": {
       "description": "A sentence saying what the distro's user-data is for.",
