@@ -27,3 +27,8 @@ packages:
 runcmd:
   - [virsh, --connect, "qemu:///system", net-autostart, default]
   - [usermod, -aG, libvirt, "{{ user }}"]
+  # open-iscsi comes with libvirt's iSCSI storage driver when recommends are
+  # on. iscsid's abstract socket clashes between WSL instances, and finalrd
+  # sets up a shutdown pivot root a WSL instance doesn't need. Masked even
+  # when absent, so a later install leaves them off.
+  - [systemctl, mask, finalrd.service, iscsid.socket]

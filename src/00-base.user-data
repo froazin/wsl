@@ -8,5 +8,12 @@ merge_how:
 
 locale: en_GB.UTF-8
 
+# No recommends: they bring in desktop, storage and audio packages a headless
+# instance doesn't use. The fragments list what they need instead. apt keeps
+# this for later installs too.
+apt:
+  conf: |
+    APT::Install-Recommends "false";
+
 package_update: true
 package_upgrade: true

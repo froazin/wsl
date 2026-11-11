@@ -86,8 +86,10 @@ Anything that needs a package, or a group a package creates such as `libvirt`, i
 | Path | Why |
 | --- | --- |
 | `/etc/wsl.conf` (`wsl`) | Turns on systemd, remounts `/` shared at boot and keeps the Windows `PATH` out (`appendWindowsPath=false`). Has no `[user]` section, because the OOBE writes `default=` |
+| `/etc/apt/apt.conf.d/94cloud-init-config` (`base`) | `APT::Install-Recommends "false"`, from the `apt` module's `conf`. It's in place before the packages install, and stays for later installs |
 | `/etc/apt/preferences.d/github-cli` (`github-cli`) | Pins `gh` from `cli.github.com` at 600, above the 510 Ubuntu Pro gives ESM |
 | `/etc/containers/nodocker` (`podman`) | Stops `podman-docker`'s `docker` wrapper printing its "Emulate Docker CLI using podman" notice |
+| `/etc/containers/containers.conf.d/50-compose.conf` (`podman`) | Makes `/usr/bin/podman-compose` the provider for `podman compose`, and `docker compose` through `podman-docker`, and turns off the notice podman prints before running an external provider |
 | `/etc/profile.d/browser.sh`, `/etc/environment.d/90-browser.conf` (`windows`) | Set `BROWSER=/usr/local/bin/start` |
 | `/etc/systemd/system/disable-swap.service` (`wsl`) | Runs `swapoff -a`, because WSL attaches swap before systemd starts: by default, and even with `swap=0` in `.wslconfig` |
 | `/etc/systemd/system/make-root-rshared.service` (`podman`) | Runs `mount --make-rshared /` before `sysinit.target`, backing up the `[boot]` command podman needs |
@@ -103,13 +105,13 @@ cloud-init writes `runcmd` out as one `#!/bin/sh` script with no `set -e`, so ea
 ```mermaid
 flowchart TD
     accTitle: runcmd order
-    accDescr: runcmd runs the fragments' entries in the order of their numbers. It links the Windows tools and fd, enables the system units and the global podman socket, sets up libvirt, sets zsh for root, then makes the user's workspaces, installs their tools and extensions and runs install.sh for the user and root.
+    accDescr: runcmd runs the fragments' entries in the order of their numbers. It links the Windows tools and fd, enables the system units and the global podman socket, sets up libvirt and masks the iSCSI units, sets zsh for root, then makes the user's workspaces, installs their tools, Node.js and extensions and runs install.sh for the user and root.
     links["windows, utilities: ln -sfn Windows tools and fd"] -->|then| units["wsl, podman: daemon-reload, enable --now disable-swap, make-root-rshared"]
     units -->|then| global["podman: systemctl --global enable podman.socket, enable --now podman.socket"]
-    global -->|then| virsh["virtualisation: virsh net-autostart default, usermod -aG libvirt"]
+    global -->|then| virsh["virtualisation: virsh net-autostart default, usermod -aG libvirt, mask finalrd and iscsid"]
     virsh -->|then| shells["users: usermod -s for root"]
     shells -->|then| prep["git: mkdir workspaces"]
-    prep -->|runuser -l| tools["development: uv, pulumi, biome, nvm, claude, ant"]
+    prep -->|runuser -l| tools["development: uv, pulumi, biome, nvm, Node.js LTS, claude, ant"]
     tools -->|runuser -l| ext["vscode, github-cli: code --install-extension, gh extension install"]
     ext -->|runuser -l| userinstall["dotfiles: install.sh as the user"]
     userinstall -->|runuser -l root| rootinstall["dotfiles: install.sh as root"]
@@ -117,6 +119,8 @@ flowchart TD
 
 - Ubuntu installs `fd-find`'s command as `fdfind`, because another package owns the name `fd`. `runcmd` links `/usr/local/bin/fd` to `/usr/bin/fdfind`, which apt has installed by then.
 - The global `podman.socket` enable, in `podman`, comes before the first `runuser -l`, in `development`. That entry starts the user's systemd manager, which reads global wants only when it starts.
+- `virtualisation` masks `finalrd.service` and `iscsid.socket`. They come from `open-iscsi`, which libvirt's iSCSI storage driver brings in only as a recommend, so a fresh instance doesn't have them. The masks keep them off if a later install brings them in: `iscsid.socket` binds an abstract socket that clashes between instances (see [Testing](testing.md#running-beside-another-instance)), and `finalrd` sets up a pivot root for shutdown that a WSL instance doesn't need.
+- `development` installs the current Node.js LTS with nvm, under `bash`, and makes `lts/*` nvm's default, for the user only. The dotfiles' zsh loads nvm in interactive shells, which puts `node` and `npm` on `PATH` there.
 - Root's `usermod -s` runs only when `/usr/bin/zsh` is executable, so a failed package install can't leave a login shell that doesn't exist. Root's shell is set before root's install, so the zsh module's `$SHELL` check sees zsh and doesn't warn.
 - The user's install puts `~/.local/bin` and `~/.pulumi/bin` on `PATH` itself, because `~/.zshenv` doesn't exist yet. Without that, `install.sh` can't find `claude` and skips the claude module.
 - Root's install uses the absolute path `/home/<user>/workspaces/...`, because `~` under `runuser -l root` is `/root`.
@@ -139,13 +143,15 @@ flowchart TD
 - The repository is public. The fragments hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only personal account name in them is the dotfiles' repository URL.
 - Only validated meta-data values reach shell commands. `username` is the exception: it's trusted as written (see [WSL meta-data](meta-data.md#limits)).
 - The GitHub CLI apt key is embedded in `github-cli`, with its fingerprint in a comment, rather than fetched at boot.
-- `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user, and nvm is cloned over HTTPS and its `install.sh` run as the user. Their integrity rests on those hosts and TLS.
+- `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user, and nvm is cloned over HTTPS and its `install.sh` run as the user, then downloads Node.js from nodejs.org. Their integrity rests on those hosts and TLS.
 - `/usr/local/bin/start` passes its target to PowerShell in an environment variable through `WSLENV`, never in the command, so the target is never parsed as code.
 - The user named by `username`, or `wsluser`, gets passwordless sudo, and their password is locked.
 
 ## Decisions
 
 - **One fragment per feature.** cloud-init's own MIME parts and merging join them, so each feature reads on its own, and a fragment's number places it in the merge. See [Build](build.md#decisions).
+- **No recommended packages.** Recommends brought in about 180 packages a headless instance doesn't use, such as a GUI terminal, X11 tools, QEMU's GUI and audio modules, extra libvirt storage drivers and `docker-compose-v2`. The `apt` module's `conf` turns them off for every install, the only way cloud-init offers: `packages` has no per-package option. Each fragment lists the recommends it needs instead, such as `passt`, `aardvark-dns`, `catatonit`, `containers-storage` and `nftables` for rootless podman and podman-compose. The setting stays, so packages installed by hand later come without their recommends too.
+- **podman-compose as the compose provider.** It's set in a `containers.conf.d` drop-in rather than left to podman's search, which uses the first compose tool it finds, so installing `docker-compose` later would change it.
 - **Native cloud-init modules over custom scripts.** Files, users, apt sources and packages use their modules. `runcmd` holds only what has no module.
 - **Installers run as the user** with `runuser -l`, so the tools live in the user's home and update themselves. nvm is cloned and checked out at its newest tag, and `ant` is unpacked with `tar -m` so zsh notices the new binary and regenerates its completion.
 - **`systemctl --global` instead of `--user`.** `runcmd` has no user bus. The `ConditionUser=!root` drop-in keeps the global enable out of root's user manager, which `sudo su` starts.
@@ -158,7 +164,7 @@ flowchart TD
 
 Nothing checks the merged user-data before a release, as [Build](build.md#validation) says. `make build` only joins the fragments, and `make lint` checks each fragment on its own.
 
-Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
+Only a throwaway instance, as [Testing](testing.md) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
 
 ## Limits
 
@@ -167,7 +173,8 @@ Only a throwaway instance, as the [README](../README.md#testing-a-change) descri
 - cloud-init finishes with a recoverable error, "Failed to wait for network", on every instance. The user-data is a MIME multipart file, not plain cloud-config, so cloud-init waits for the network at the start of its network stage by starting `systemd-networkd-wait-online.service`, which Ubuntu's WSL image masks. `cloud-init status --long` lists it, and nothing else is affected (observed with the earlier single Jinja file; cloud-init's `_should_wait_via_user_data` waits for any user-data that isn't plain cloud-config).
 - The Windows tool paths are fixed. A tool installed elsewhere gets a dangling link.
 - `ant`'s architecture is chosen only for `x86_64` and `aarch64`.
-- WSL instances share one cgroup tree. While one instance running systemd has a user manager for uid 1000, another instance's `user@1000.service` fails with "Failed to spawn executor: Device or resource busy", and WSL reports "Failed to start the systemd user session". The user's `podman.socket` then doesn't start (observed with a Fedora instance beside an Ubuntu one; inferred for a second Ubuntu instance, such as a throwaway `Test`).
+- WSL instances share one VM, with its cgroup tree, network namespace and `binfmt_misc` table. Two instances built from this config clash over uid 1000's user manager, libvirt's `default` network and other units, and stopping one can break Windows interop in the other. [Testing](testing.md#running-beside-another-instance) lists what was observed and how to recover.
+- `node` and `npm` are on `PATH` only in shells that load nvm, such as the dotfiles' interactive zsh. Scripts run with `zsh -c` or `sh` don't get them.
 
 ## Sources
 
