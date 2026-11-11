@@ -26,7 +26,7 @@ $example = [regex]::Match($text, '(?ms)^<!-- meta-data example -->\n+```yaml\n(.
 if (-not $example.Success) { Fail "$Readme has no yaml code block straight after <!-- meta-data example -->." }
 
 # Fill in the example's empty keys, the way a user would, so its defaults are tested too. It fails when the example
-# doesn't leave empty a key this case fills in.
+# doesn't leave empty a key the test fills in.
 $meta = $example.Groups[1].Value
 $values = [ordered]@{ username = $Username; git_name = $GitName; git_email = $GitEmail }
 foreach ($key in $values.Keys) {

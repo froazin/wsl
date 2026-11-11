@@ -1,11 +1,11 @@
 # Builds the user-data from the fragments, as docs/build.md describes.
 
-FRAGMENTS := $(sort $(wildcard src/fragments/*.user-data))
+FRAGMENTS := $(sort $(wildcard src/*.user-data))
 USER_DATA := dist/Ubuntu.user-data
 
 ifeq ($(FRAGMENTS),)
 ifneq ($(MAKECMDGOALS),clean)
-$(error No fragments in src/fragments/)
+$(error No fragments in src/)
 endif
 endif
 
@@ -24,12 +24,12 @@ BOUNDARY := ==============wsl-user-data==
 build: $(USER_DATA)
 
 # The folder is a prerequisite too, because its time changes when a fragment is added, removed or renamed. make-mime
-# names each part after the path it's given, so it runs in the fragments' folder. A failed build leaves no user-data,
-# old or new, and no temporary file.
-$(USER_DATA): $(FRAGMENTS) src/fragments Makefile
+# names each part after the path it's given, so it runs in src/. A failed build leaves no user-data, old or new, and
+# no temporary file.
+$(USER_DATA): $(FRAGMENTS) src Makefile
 	mkdir -p $(@D)
 	rm -f $@ $@.tmp
-	cd src/fragments && cloud-init devel make-mime $(foreach f,$(FRAGMENTS),--attach $(notdir $(f)):$(call part_type,$(f))) > "$(CURDIR)/$@.tmp" || { rm -f "$(CURDIR)/$@.tmp"; exit 1; }
+	cd src && cloud-init devel make-mime $(foreach f,$(FRAGMENTS),--attach $(notdir $(f)):$(call part_type,$(f))) > "$(CURDIR)/$@.tmp" || { rm -f "$(CURDIR)/$@.tmp"; exit 1; }
 	sed -E 's/={15}[0-9]+==/$(BOUNDARY)/g' $@.tmp > $@ || { rm -f $@.tmp; exit 1; }
 	rm $@.tmp
 

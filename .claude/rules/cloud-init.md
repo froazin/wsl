@@ -5,7 +5,7 @@ paths:
 
 # WSL cloud-init (`src/`)
 
-The user-data is written as cloud-config fragments in `fragments/`, named
+The user-data is written as cloud-config fragments in `src/`, named
 `<NN>-<feature>.user-data`. `make build` joins every fragment, in the order
 of their numbers, with `cloud-init devel make-mime` into
 `dist/Ubuntu.user-data`, a MIME multipart file with one part per fragment.
@@ -48,12 +48,16 @@ other files from the Windows side.
 - Jinja runs with `trim_blocks` on and `lstrip_blocks` off: put every
   `{% %}` / `{# #}` tag at column 0, or its indentation is left behind and
   breaks YAML. Never write `{#`, `{{` or `{%` inside embedded shell.
-- Undefined meta-data keys are falsy; read them as `ds.meta_data.x or ''`.
-  Values rendered into `.gitconfig` go through the `gitval` macro. Meta-data
-  is YAML, so a key can be a list (`vscode_extensions`, `gh_extensions`);
-  normalise its type first, and let only validated items into shell. Report
-  the rest with `printf %s` and an ASCII-escaped `tojson` value: a non-BMP
-  character otherwise becomes lone surrogates that fail all of runcmd.
+- Undefined meta-data keys are falsy; read them as `ds.meta_data.x or ''`,
+  and `username` as `ds.meta_data.username or 'wsluser'`, so there is
+  always a user. Values rendered into `.gitconfig` go through the `gitval`
+  macro. Meta-data is YAML, so a key can be a list (`vscode_extensions`,
+  `gh_extensions`); normalise its type first, and let only validated items
+  into shell. Report the rest with `printf %s` and an ASCII-escaped `tojson`
+  value: a non-BMP character otherwise becomes lone surrogates that fail all
+  of runcmd.
+- Write a `runcmd:` key only when the fragment has an entry for it: an empty
+  one renders as `null`, which fails `cloud-init schema`.
 - runcmd runs as root with no user bus, so `systemctl --user` fails there;
   enable user units with `systemctl --global enable`. The first
   `runuser -l <user>` entry starts the user's manager (pam_systemd), which

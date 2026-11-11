@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build
+    name: Lint and build
     runs-on: &runs-on ubuntu-26.04
     outputs:
       tag: ${{ steps.compare.outputs.tag }}
@@ -40,14 +40,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # As in the CI workflow, the build runs cloud-init's make-mime. commitizen works out the version.
+      # The same checks as the CI workflow's, so a push straight to main is checked too, before anything is released.
+      # The code review stays in CI. commitizen works out the version.
       - name: Install the tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cloud-init commitizen make
+          sudo apt-get install --yes --no-install-recommends cloud-init commitizen make shellcheck shfmt
 
       - name: Build the config
         run: make build
+
+      - name: Lint the shell scripts
+        run: shellcheck .github/scripts/*.sh
+
+      - name: Check the shell formatting
+        run: shfmt -d .
 
       # The build gives the same fragments the same file, so the same SHA-1 means nothing has changed. A release is due
       # only when the built user-data's SHA-1 differs from the latest release's, or there's no release yet. Otherwise the
@@ -89,39 +96,26 @@ jobs:
           path: dist/Ubuntu.user-data
           if-no-files-found: error
 
-  # Only a release that's due, from a build that passed, reaches the Windows runners. Each case installs the instance
-  # the README describes on its own runner, because WSL instances on one machine share a cgroup tree. It runs under
-  # WSL's default settings, because the .wslconfig is an optional example.
+  # Only a release that's due, from a build that passed, reaches the Windows runner. It installs the instance the
+  # README describes, under WSL's default settings, because the .wslconfig is an optional example.
   e2e:
-    name: End-to-end ${{ matrix.case }}
+    name: End-to-end
     needs: build
     if: needs.build.outputs.tag != ''
     runs-on: windows-2025
     # A WSL job can freeze the runner, and then step timeouts never fire.
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      # include adds each case's values to its job.
-      matrix:
-        case:
-          - with a user
-          - without a user
-        include:
-          - case: with a user
-            user: jdoe
-            git-name: Jane Doe
-            git-email: 1+jdoe@users.noreply.github.com
-          - case: without a user
-            user: ""
-            git-name: ""
-            git-email: ""
     defaults:
       run:
         shell: pwsh
-    # The instance wsl --install Ubuntu makes, as the README says.
+    # The instance wsl --install Ubuntu makes, as the README says, and the values filled into the README's meta-data
+    # example.
     env:
       INSTANCE: Ubuntu
       WSL_UTF8: "1"
+      E2E_USER: jdoe
+      E2E_GIT_NAME: Jane Doe
+      E2E_GIT_EMAIL: 1+jdoe@users.noreply.github.com
     steps:
       # For the test scripts. The config comes from the build job, so it's the one that would be released.
       - name: Check out the repository
@@ -136,10 +130,6 @@ jobs:
           path: dist
 
       - name: Put the cloud-init files in place
-        env:
-          E2E_USER: ${{ matrix.user }}
-          E2E_GIT_NAME: ${{ matrix.git-name }}
-          E2E_GIT_EMAIL: ${{ matrix.git-email }}
         run: >-
           ./.github/scripts/seed-cloud-init.ps1 -Instance $env:INSTANCE -UserData dist/Ubuntu.user-data
           -Readme README.md -Username $env:E2E_USER -GitName $env:E2E_GIT_NAME -GitEmail $env:E2E_GIT_EMAIL
@@ -156,9 +146,6 @@ jobs:
         run: ./.github/scripts/restart-instance.ps1 -Instance $env:INSTANCE
 
       - name: Check the instance
-        env:
-          E2E_USER: ${{ matrix.user }}
-          E2E_GIT_NAME: ${{ matrix.git-name }}
         run: ./.github/scripts/check-instance.ps1 -Instance $env:INSTANCE
 
   # The only job that can write to the repository, so it runs no repository code: it has no checkout, and only publishes

@@ -19,15 +19,15 @@ The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\Ubunt
 
 The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. The [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, and find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in, and add every new key to the example. Nothing else checks the example before a release, as [Build](build.md#validation) says.
 
-Each key is read in the fragments in [`src/fragments/`](../src/fragments/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A new key goes into the README's example.
+Each key is read in the fragments in [`src/`](../src/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list, and `or 'wsluser'` for `username`), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A new key goes into the README's example.
 
 Each fragment turns the keys it reads into the variables its cloud-config uses. This flowchart shows where each key ends up:
 
 ```mermaid
 flowchart LR
     accTitle: Where each meta-data key ends up
-    accDescr: The username gates everything in the user's home. Git keys go into .gitconfig through gitval, and a literal signing key also goes into allowed_signers. A GitHub noreply email gives a workspace directory. Extension lists become one runcmd install each, and rejected entries become printf lines.
-    username["username"] -->|"users: and runuser"| home["/home/username"]
+    accDescr: The username, or wsluser when it's unset, names the user and their home. Git keys go into .gitconfig through gitval, and a literal signing key also goes into allowed_signers. A GitHub noreply email gives a workspace directory. Extension lists become one runcmd install each, and rejected entries become printf lines.
+    username["username, or wsluser"] -->|"users: and runuser"| home["/home/username"]
     git["git_name, git_email, git_signingkey, git_ssh_program"] -->|gitval| gitconfig["~/.gitconfig"]
     git -->|"literal key only"| signers["~/.config/git/allowed_signers"]
     git -->|"noreply git_email"| ghdir["~/workspaces/github.com/owner"]
@@ -39,14 +39,14 @@ flowchart LR
 
 ## Keys
 
-Every key apart from `instance-id` needs `username`: without one, the user-data writes no `~/.gitconfig` or other file into a home, and installs nothing as a user.
+Every key is optional apart from `instance-id`. Without a `username`, the user-data creates `wsluser`, and sets up everything else for that user.
 
 The "Read in" column calls each fragment by its feature, such as `git` for `80-git.user-data`.
 
 | Key | Expected type | Value in the example | Read in | Ends up in |
 | --- | --- | --- | --- | --- |
 | `instance-id` | String | `wsl` | None | Read by the datasource, which needs it. No fragment uses it |
-| `username` | String | Empty | Every fragment from `virtualisation` on | `users:`, every `runuser` command and the home paths |
+| `username` | String | Empty | Every fragment from `virtualisation` on | `users:`, every `runuser` command and the home paths, as `wsluser` when it's unset |
 | `git_name`, `git_email` | String | Empty | `git` | `[user]` in `~/.gitconfig` |
 | `git_signingkey` | String | Empty | `git` | `user.signingkey`, `gpg.format`, `commit.gpgsign`, `gpg.ssh.allowedSignersFile` and `allowed_signers` |
 | `git_ssh_program` | String | Empty | `git` | `gpg.ssh.program` |
@@ -57,7 +57,7 @@ The "Read in" column calls each fragment by its feature, such as `git` for `80-g
 
 ### `username`
 
-The username isn't validated. It's written as it is into `users:` (uid 1000, `/usr/bin/zsh`, passwordless sudo, locked password), into the `owner` and `path` of the deferred files and into the `runuser` commands. When it's empty, Ubuntu's out-of-box experience asks for a user instead.
+The username isn't validated. It's written as it is into `users:` (uid 1000, `/usr/bin/zsh`, passwordless sudo, locked password), into the `owner` and `path` of the deferred files and into the `runuser` commands. When it's unset, every fragment uses `wsluser` instead, so the user-data always creates a user, and Ubuntu's out-of-box experience never asks for one.
 
 ### Git identity
 
@@ -115,7 +115,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 - The value is the entry's string form, with non-ASCII characters escaped by Python's `backslashreplace` and then quoted by Jinja's `tojson`. A non-string entry, such as `42`, prints as `42`.
 - It escapes to ASCII first because `tojson` writes a character outside the Basic Multilingual Plane as a surrogate pair, which YAML decodes into lone surrogates. cloud-init then can't write the `runcmd` script as UTF-8, and every entry fails.
 - It uses `printf` with `%s` rather than `echo`, because dash's `echo` interprets backslashes.
-- These lines sit inside the fragment's `{% if user %}` block, so nothing is reported without a username.
+- A fragment writes `runcmd` only when its list has an entry, valid or not. An empty `runcmd` is `null`, which fails cloud-init's schema (observed).
 
 ## Security and privacy
 
@@ -128,6 +128,7 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 
 - **Validate in the fragments, not at runtime.** Checking each value before it's rendered keeps hostile text out of shell commands. The fragments' comments say only validated IDs reach the shell.
 - **Accept a string for a list.** A comma or space-separated string is split into entries, so a list written on one line still works (inferred: no comment gives the reason).
+- **A default user.** Without a `username`, the user-data creates `wsluser` rather than leaving the OOBE to ask for one, so every instance gets the same tools, extensions and dotfiles, and there's one path to test.
 - **Report rather than fail.** A bad entry is skipped and named in the log, so the rest of the instance still builds.
 - **Derive the workspace from a noreply email only.** It's the one email form that holds the GitHub username (inferred).
 - **`*` as the fallback principal.** It keeps verification working when the email can't be written safely as a principal, at the cost of trusting the key for any identity (inferred: the example's comment states the fallback, not the reason).
@@ -137,7 +138,6 @@ Skipped gh_extensions entry, not an [https://][host/]owner/repo: %s
 - `username` isn't validated. A value with spaces or YAML syntax breaks the render or the commands (inferred).
 - A newline in `git_name`, `git_email` or `git_ssh_program` isn't escaped. In `git_name` it broke the YAML of the rendered user-data (observed).
 - A `git_signingkey` that isn't a string, such as a list, is written to `user.signingkey` in its Python form and still turns on signing (observed). It gets no `allowed_signers` file.
-- Without `username`, rejected values aren't reported (observed).
 - `gh extension install` runs before the user logs in to gh, so a private extension fails at first boot (inferred from the comment that a public one needs no login).
 - A VS Code extension install is skipped without a message when `/usr/local/bin/code` isn't executable, such as when VS Code isn't installed at the linked Windows path.
 - The README's example is read on `main`, not from a release. Between a change to the keys landing on `main` and its release, the example can name a key the latest release's user-data doesn't read, and an unread key is ignored without a message. The README at the release's tag has the example that matches it.

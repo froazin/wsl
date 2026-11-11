@@ -7,7 +7,8 @@ merge_how:
   - name: dict
     settings: [no_replace, recurse_list]
 
-{% set user = ds.meta_data.username or '' %}
+{# The username from the meta-data, or wsluser when it gives none. #}
+{% set user = ds.meta_data.username or 'wsluser' %}
 {% set git_name = ds.meta_data.git_name or '' %}
 {% set git_email = ds.meta_data.git_email or '' %}
 {% set git_signingkey = ds.meta_data.git_signingkey or '' %}
@@ -33,7 +34,6 @@ merge_how:
 {% set allowed_signer = principal ~ ' namespaces="git" ' ~ key_type ~ ' ' ~ key_data %}
 {% endif %}
 {% macro gitval(value) %}"{{ value | string | replace('\\', '\\\\') | replace('"', '\\"') }}"{% endmacro %}
-{% if user %}
 
 write_files:
   # Deferred until the user exists. The git module adds core.excludesfile later.
@@ -99,5 +99,4 @@ runcmd:
   - [runuser, -u, "{{ user }}", --, mkdir, -p, "/home/{{ user }}/workspaces"]
 {% if gh_user %}
   - [runuser, -u, "{{ user }}", --, mkdir, -p, "/home/{{ user }}/workspaces/github.com/{{ gh_user }}"]
-{% endif %}
 {% endif %}
