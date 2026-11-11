@@ -156,7 +156,7 @@ flowchart TD
 
 ## Validation
 
-Nothing checks the merged user-data before a release, as [Build](build.md#validation) says. `make build` only joins the fragments.
+Nothing checks the merged user-data before a release, as [Build](build.md#validation) says. `make build` only joins the fragments, and `make lint` checks each fragment on its own.
 
 Only a throwaway instance, as the [README](../README.md#testing-a-change) describes, exercises the datasource, the OOBE and the package installs. The [end-to-end tests](releases.md#end-to-end-tests) install one on Windows runners before each release, though without the OOBE.
 

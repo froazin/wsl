@@ -18,8 +18,11 @@ part_type = $(if $(subst $(JINJA_HEADER)x,,$(shell head -n 1 $(1))x),cloud-confi
 # the same file, so a release can compare hashes. Every part is base64, so the boundary can't appear in one.
 BOUNDARY := ==============wsl-user-data==
 
+# Each file in test/ is instance data that make lint renders every fragment with.
+LINT_CASES := $(wildcard test/*.json)
+
 .DELETE_ON_ERROR:
-.PHONY: build clean
+.PHONY: build lint clean
 
 build: $(USER_DATA)
 
@@ -32,6 +35,24 @@ $(USER_DATA): $(FRAGMENTS) src Makefile
 	cd src && cloud-init devel make-mime $(foreach f,$(FRAGMENTS),--attach $(notdir $(f)):$(call part_type,$(f))) > "$(CURDIR)/$@.tmp" || { rm -f "$(CURDIR)/$@.tmp"; exit 1; }
 	sed -E 's/={15}[0-9]+==/$(BOUNDARY)/g' $@.tmp > $@ || { rm -f $@.tmp; exit 1; }
 	rm $@.tmp
+
+# Writes each fragment as cloud-init reads it with each case's instance data, rendered when it's a Jinja fragment, to
+# dist/lint/<case>/, then checks every result with yamllint and cloud-init's schema.
+lint:
+	rm -rf dist/lint
+	for c in $(LINT_CASES); do \
+		d=dist/lint/$$(basename $$c .json); mkdir -p $$d; \
+		for f in $(FRAGMENTS); do \
+			o=$$d/$$(basename $$f .user-data).yaml; \
+			if [ "$$(head -n 1 $$f)" = "$(JINJA_HEADER)" ]; then \
+				cloud-init devel render --instance-data $$c $$f > $$o || exit 1; \
+			else \
+				cp $$f $$o; \
+			fi; \
+		done; \
+	done
+	yamllint --strict dist/lint
+	for o in dist/lint/*/*.yaml; do cloud-init schema -c $$o || exit 1; done
 
 clean:
 	rm -rf dist
