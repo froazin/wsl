@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build
+    name: Lint and build
     runs-on: &runs-on ubuntu-26.04
     outputs:
       tag: ${{ steps.compare.outputs.tag }}
@@ -40,14 +40,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # As in the CI workflow, the build runs cloud-init's make-mime. commitizen works out the version.
+      # The same checks as the CI workflow's, so a push straight to main is checked too, before anything is released.
+      # The code review stays in CI. commitizen works out the version.
       - name: Install the tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cloud-init commitizen make
+          sudo apt-get install --yes --no-install-recommends cloud-init commitizen make shellcheck shfmt
 
       - name: Build the config
         run: make build
+
+      - name: Lint the shell scripts
+        run: shellcheck .github/scripts/*.sh
+
+      - name: Check the shell formatting
+        run: shfmt -d .
 
       # The build gives the same fragments the same file, so the same SHA-1 means nothing has changed. A release is due
       # only when the built user-data's SHA-1 differs from the latest release's, or there's no release yet. Otherwise the

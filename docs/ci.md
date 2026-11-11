@@ -31,7 +31,7 @@ flowchart LR
 
 ## Checks
 
-The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from a current release of Ubuntu. It installs `cloud-init`, `make`, `shellcheck` and `shfmt` from apt (see [Build](build.md#tools)). Then it runs the checks in the README's [Building it](../README.md#building-it): `make build`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`.
+The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from a current release of Ubuntu. It installs `cloud-init`, `make`, `shellcheck` and `shfmt` from apt (see [Build](build.md#tools)). Then it runs the checks in the README's [Building it](../README.md#building-it): `make build`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`. The release workflow runs the same checks on every push to `main`, so a change pushed straight to `main` is checked before it's released (see [Releases](releases.md#overview)).
 
 `make build` only joins the fragments. Nothing renders the user-data or runs `cloud-init schema` on it, so the code review checks those by reading, and the end-to-end tests catch what it misses before a release.
 
