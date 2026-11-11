@@ -12,11 +12,28 @@ packages:
   - podman-compose
   - buildah
   - skopeo
+  # Recommends of podman and netavark that rootless podman and podman-compose
+  # need: pasta networking, container DNS, the pods' init, the default
+  # storage.conf and netavark's firewall.
+  - passt
+  - aardvark-dns
+  - catatonit
+  - containers-storage
+  - nftables
 
 write_files:
   - path: /etc/containers/nodocker
     permissions: "0644"
     content: ""
+
+  # `podman compose` (and `docker compose` through podman-docker) runs
+  # podman-compose, without its notice about the external provider.
+  - path: /etc/containers/containers.conf.d/50-compose.conf
+    permissions: "0644"
+    content: |
+      [engine]
+      compose_providers = ["/usr/bin/podman-compose"]
+      compose_warning_logs = false
 
   # runcmd enables podman.socket globally. In root's user manager, which
   # `sudo su` starts, it would be a second rootful API beside the system one.

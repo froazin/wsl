@@ -24,7 +24,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 | `.claude/rules/cloud-init.md` | The facts that constrain the user-data. It loads when you touch `src/` |
 | `.cz.toml` | commitizen's settings, which the release workflow works out each release's version with. See [docs/releases.md](docs/releases.md#how-the-version-is-decided) |
 | `.claude/settings.json` | The project's permissions for Claude Code: the build command and the version preview, `cz bump --get-next --yes --allow-no-commit` |
-| `README.md` | The entry point for people who use the config, with the install steps, the meta-data example, the `.wslconfig` example and how to build and check it. The end-to-end tests read the meta-data example after its `<!-- meta-data example -->` comment. Before you change the example, read [docs/meta-data.md](docs/meta-data.md) |
+| `README.md` | The entry point for people who use the config, with the install steps, the meta-data example, the `.wslconfig` example and how to build and check it. Testing on an instance is in [docs/testing.md](docs/testing.md), not the README. The end-to-end tests read the meta-data example after its `<!-- meta-data example -->` comment. Before you change the example, read [docs/meta-data.md](docs/meta-data.md) |
 | `.editorconfig`, `.gitattributes`, `.gitignore` | shfmt and editor settings, LF line endings for every file and what Git ignores, such as `dist/` |
 | `.vscode/settings.json` | Shared VS Code settings: Jinja YAML highlighting for the cloud-init files and Jinja TOML for `.wslconfig` |
 | `LICENSE` | The MIT licence |
@@ -39,7 +39,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 - **Build with make and the cloud-init CLI.** The build and its checks are the `Makefile` alone, with no manifests, version files or Python tooling. Keep it that small. The project has no unit tests.
 - **Keep `packages` in step with the dotfiles.** The fragments' `packages` list the dotfiles modules' dependencies. When a dotfiles module gains a dependency, add it here too.
 - **Don't write outside the repository to test.** Writing to the Windows profile (`%USERPROFILE%\.cloud-init`, `.wslconfig`), or installing or unregistering WSL instances, needs the user's go-ahead.
-- Run the checks in the README's [Building it](README.md#building-it) before you say a change works.
+- Run the checks in the README's [Building it](README.md#building-it) before you say a change works. To test a change on a first boot, read [docs/testing.md](docs/testing.md) before you install the instance, and check Windows interop in the other instances after every `wsl --terminate` or `wsl --unregister`.
 - Choose a pull request's type by what it changes, because commitizen works out the release's version from it. See [docs/releases.md](docs/releases.md#how-the-version-is-decided).
 - Pin every action a workflow uses to a full commit SHA, with its version in a comment.
 - **Squash-merge a pull request once the CI workflow passes, or didn't run because the pull request only changes docs, and every review thread is resolved.** Resolve a thread only after you've fixed what it raises, or replied with why it isn't a problem.

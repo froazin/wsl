@@ -18,6 +18,7 @@ packages:
   - make
   - shellcheck
   - shfmt
+  - yamllint
 
 runcmd:
   # Official installers, run as the user so they can update themselves. The
@@ -30,6 +31,10 @@ runcmd:
   # the newest tag first; rerunning this updates it. PROFILE=/dev/null keeps it
   # out of the shell profiles.
   - [runuser, -l, "{{ user }}", -c, 'if [ -d {{ nvm_dir }}/.git ]; then git -C {{ nvm_dir }} fetch --quiet --tags; else git clone --quiet {{ nvm_repo }} {{ nvm_dir }}; fi && cd {{ nvm_dir }} && git checkout --quiet "$(git describe --abbrev=0 --tags --match "v[0-9]*" "$(git rev-list --tags --max-count=1)")" && PROFILE=/dev/null bash install.sh']
+  # Node.js LTS through nvm, as the user's default, so node and npm are on
+  # PATH wherever the dotfiles' zsh loads nvm. Root gets none. lts/* follows
+  # the newest LTS nvm installs later.
+  - [runuser, -l, "{{ user }}", -c, 'bash -c ''. "$HOME/.nvm/nvm.sh" && nvm install --lts && nvm alias default "lts/*"''']
   # Claude Code's installer needs bash.
   - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://claude.ai/install.sh | bash"]
   # ant (Claude Platform CLI, not apt's Apache Ant) has no installer or

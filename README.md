@@ -12,13 +12,13 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 
 ## What it sets up
 
-- The packages a zsh workstation needs, plus podman and tools such as `gh`, `ripgrep`, `fd`, `btop`, `make` and commitizen (`cz`).
+- The packages a zsh workstation needs, plus podman and tools such as `gh`, `ripgrep`, `fd`, `btop`, `make`, `yamllint` and commitizen (`cz`). apt installs them without their recommended packages, and keeps that setting for anything you install later.
 - A KVM and libvirt stack for running virtual machines inside WSL.
-- podman's Docker-compatible API socket: rootless for every user, and the system socket for root.
+- podman's Docker-compatible API socket: rootless for every user, and the system socket for root. `podman compose` and `docker compose` run podman-compose.
 - `/etc/wsl.conf` with systemd on, and swap off, which WSL turns on by default.
 - Windows tools (VS Code, the 1Password CLI, OpenSSH and `clip`) linked into the Linux `PATH`, and `$BROWSER` set so `xdg-open` opens things in Windows.
 - A user with zsh and passwordless sudo, named by your meta-data's `username`, or `wsluser` when it gives none.
-- For that user: `uv`, `pulumi`, Biome, `nvm`, Claude Code, the Claude Platform CLI (`ant`) and the VS Code and GitHub CLI extensions you list.
+- For that user: `uv`, `pulumi`, Biome, `nvm` with the current Node.js LTS as its default, Claude Code, the Claude Platform CLI (`ant`) and the VS Code and GitHub CLI extensions you list.
 - A git config for that user, with optional commit signing.
 - The [froazin/dotfiles](https://github.com/froazin/dotfiles) zsh, git, podman and Claude Code config, for the user and for root.
 
@@ -149,17 +149,6 @@ shfmt -d .
 - `make lint` renders each fragment with the instance data in `test/`, then checks it with yamllint and `cloud-init schema`. There are no unit tests. [Build](docs/build.md#validation) says what the checks do and don't catch.
 - shfmt reads its options from `.editorconfig`, so run it without formatting flags: any flag such as `-i` makes it ignore `.editorconfig`.
 
-### Testing a change
-
-Build the user-data with `make build`, as [Building it](#building-it) describes. Copy `dist/Ubuntu.user-data` as `Test.user-data`, and write `Test.meta-data` from [the meta-data example](#the-meta-data-example), to match a throwaway instance. Then install it, and remove it when you're done:
-
-```powershell
-wsl --install Ubuntu --name Test
-wsl --unregister Test
-```
-
-WSL instances share one cgroup tree, so stop your main instance first if you're testing the user's systemd services, such as `podman.socket`. While another instance runs a systemd session for the same uid, the test instance's user session fails to start.
-
 ### Making it your own
 
 Fork the repository and change the fragments in [`src/`](src/), then build your own user-data with `make build`, which writes it to `dist/Ubuntu.user-data`. To drop a feature, delete its fragment. To add one, add a fragment whose number puts it where it runs, as [Build](docs/build.md#the-fragments) says. The user-data clones and installs [froazin/dotfiles](https://github.com/froazin/dotfiles): point `dotfiles_repo` near the top of [`99-dotfiles.user-data`](src/99-dotfiles.user-data) at your own dotfiles, which need a `src/install.sh`, or remove the entries that run it.
@@ -188,6 +177,7 @@ The design docs explain each part, for anyone changing it:
 - [Build](docs/build.md): how the `Makefile` joins the fragments into `dist/Ubuntu.user-data` with cloud-init.
 - [CI](docs/ci.md): the checks and the code review that run on each pull request.
 - [Releases](docs/releases.md): how `main` is released, with the end-to-end test on a Windows runner.
+- [Testing](docs/testing.md): how to test a change on a throwaway instance beside your own, and what the instances share.
 
 ## Contributing
 

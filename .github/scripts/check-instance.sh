@@ -77,6 +77,33 @@ has_uid()
     [ "$(id -u "$1")" = "$2" ]
 }
 
+is_masked()
+{
+    [ "$(systemctl is-enabled "$1" 2> /dev/null)" = masked ]
+}
+
+recommends_are_off()
+{
+    apt-config dump APT::Install-Recommends | grep -qx 'APT::Install-Recommends "false";'
+}
+
+# podman prints its notice about an external compose provider on stderr.
+compose_is_quiet()
+{
+    podman compose version > /dev/null 2>&1 && [ -z "$(podman compose version 2>&1 > /dev/null)" ]
+}
+
+# nvm is loaded by the dotfiles' interactive zsh, so check there.
+node_on_path()
+{
+    runuser -l "$1" -c 'zsh -ic "command -v node && command -v npm && node --version && npm --version"' < /dev/null
+}
+
+no_node_for_root()
+{
+    ! zsh -ic 'command -v node' < /dev/null
+}
+
 git_config_is()
 {
     [ "$(runuser -u "$1" -- git config --global --get "$2")" = "$3" ]
@@ -100,9 +127,11 @@ check "gh is pinned to cli.github.com" grep -qx 'Pin: origin cli.github.com' /et
 check "BROWSER is set for login shells" grep -q 'BROWSER=/usr/local/bin/start' /etc/profile.d/browser.sh
 check "/usr/local/bin/start is executable" test -x /usr/local/bin/start
 check "the locale is en_GB.UTF-8" grep -q 'LANG=en_GB.UTF-8' /etc/default/locale
+check "apt installs no recommends" recommends_are_off
+check "podman compose uses podman-compose" grep -q 'compose_providers = \["/usr/bin/podman-compose"\]' /etc/containers/containers.conf.d/50-compose.conf
 
 # Packages, the GitHub CLI source and the links runcmd makes
-for cmd in zsh git gh jq curl direnv fzf python3 make cz shellcheck shfmt podman buildah skopeo btop tree rg nmap virsh qemu-system-x86_64; do
+for cmd in zsh git gh jq curl direnv fzf python3 make cz shellcheck shfmt yamllint podman podman-compose buildah skopeo btop tree rg nmap virsh qemu-system-x86_64; do
     check "$cmd is installed" command -v "$cmd"
 done
 
@@ -122,6 +151,9 @@ check "make-root-rshared.service is enabled" systemctl is-enabled make-root-rsha
 check "root's podman.socket is active" systemctl is-active podman.socket
 check "podman.socket is enabled for users" systemctl --global is-enabled podman.socket
 check "libvirt's default network autostarts" network_autostarts
+check "finalrd.service is masked" is_masked finalrd.service
+check "iscsid.socket is masked" is_masked iscsid.socket
+check "podman compose prints no provider notice" compose_is_quiet
 
 # Root's shell and dotfiles
 check "root's login shell is zsh" login_shell_is root /usr/bin/zsh
@@ -150,6 +182,8 @@ for tool in .local/bin/uv .local/bin/claude .local/bin/ant .local/bin/biome .pul
     check "$user has ~/$tool" test -x "$home/$tool"
 done
 check "$user has nvm" test -s "$home/.nvm/nvm.sh"
+check "node and npm are on $user's PATH in zsh" node_on_path "$user"
+check "root has no node" no_node_for_root
 check "$user has the gh act extension" test -d "$home/.local/share/gh/extensions/gh-act"
 
 if [ "$failed" = "true" ]; then
