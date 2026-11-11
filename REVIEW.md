@@ -32,7 +32,7 @@ Every comment must be resolved before the PR can merge, so report Nits sparingly
 
 ## Don't report
 
-- Anything `make build`, ShellCheck or shfmt reports. CI runs them before the review.
+- Anything `make build`, `make lint`, ShellCheck or shfmt reports. CI runs them before the review.
 - The PR's title and description.
 - A limit that a design doc's Limits section records, unless the change makes it worse.
 - An issue that a resolved review thread on the PR already raises, whatever its replies say. Resolving a thread settles it.

@@ -102,7 +102,9 @@ example.
 
 ## Check a change
 
-Nothing renders the user-data or runs `cloud-init schema` on it before a
-release. After every change, run `make build`, which only joins the
-fragments, and tell the user that the user-data couldn't be validated. The
-end-to-end tests install it on a first boot only when a release is due.
+After every change, run `make build` and `make lint`. `make lint` renders
+each fragment with the instance data in `test/` and checks it with yamllint
+and `cloud-init schema`, but nothing checks the merged user-data: tell the
+user so. A new meta-data key goes into `test/meta-data.json`, with a
+placeholder value. The end-to-end tests install the user-data on a first
+boot only when a release is due.

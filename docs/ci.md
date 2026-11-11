@@ -20,8 +20,8 @@ How [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) checks a pull requ
 ```mermaid
 flowchart LR
     accTitle: The jobs that run on a pull request
-    accDescr: A pull request that changes more than docs starts the workflow. The checks job builds the user-data and lints the shell scripts. When the checks pass, the code-review job runs Claude, which comments on the pull request.
-    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: make build, ShellCheck, shfmt"]
+    accDescr: A pull request that changes more than docs starts the workflow. The checks job builds the user-data, lints the rendered fragments and lints the shell scripts. When the checks pass, the code-review job runs Claude, which comments on the pull request.
+    pr["Pull request to main"] -->|"opened or pushed, not only docs"| checks["checks: make build, make lint, ShellCheck, shfmt"]
     checks -->|passed| review["code-review: Claude"]
     review -->|comments| pr
 ```
@@ -31,9 +31,9 @@ flowchart LR
 
 ## Checks
 
-The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from a current release of Ubuntu. It installs `cloud-init`, `make`, `shellcheck` and `shfmt` from apt (see [Build](build.md#tools)). Then it runs the checks in the README's [Building it](../README.md#building-it): `make build`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`. The release workflow runs the same checks on every push to `main`, so a change pushed straight to `main` is checked before it's released (see [Releases](releases.md#overview)).
+The `checks` job runs on `ubuntu-26.04`, so `cloud-init` comes from a current release of Ubuntu. It installs `cloud-init`, `make`, `shellcheck`, `shfmt` and `yamllint` from apt (see [Build](build.md#tools)). Then it runs the checks in the README's [Building it](../README.md#building-it): `make build`, `make lint`, ShellCheck on `.github/scripts/*.sh` and `shfmt -d .`. The release workflow runs the same checks on every push to `main`, so a change pushed straight to `main` is checked before it's released (see [Releases](releases.md#overview)).
 
-`make build` only joins the fragments. Nothing renders the user-data or runs `cloud-init schema` on it, so the code review checks those by reading, and the end-to-end tests catch what it misses before a release.
+`make build` only joins the fragments. `make lint` renders each one with the two instance data files in `test/`, and checks the results with yamllint and `cloud-init schema`, as [Build](build.md#validation) describes. Nothing checks the merged user-data, so the code review checks the merge by reading, and the end-to-end tests catch what it misses before a release.
 
 ## Code review
 
@@ -76,7 +76,7 @@ The `code-review` job asks Claude Sonnet 5.5 to review the lines the PR adds or 
 - Nothing stops a maintainer merging a PR whose checks failed, because none are required.
 - A docs-only PR isn't reviewed, so nothing checks that its docs still match the code.
 - A PR whose checks are skipped has no workflow run at all, so its checks list is empty rather than skipped.
-- Nothing renders the user-data on a PR, so a change that fails `cloud-init schema` or a first boot is first caught by the end-to-end tests on `main`, and only when it changes the built user-data.
+- `make lint` renders the fragments with two instance data files only, and on their own. A change that fails only with other meta-data, only once the parts merge, or only on a first boot is first caught by the end-to-end tests on `main`, and only when it changes the built user-data.
 
 ## Sources
 

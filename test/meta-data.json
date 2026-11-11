@@ -1,0 +1,15 @@
+{
+  "ds": {
+    "meta_data": {
+      "instance-id": "wsl",
+      "username": "jdoe",
+      "git_name": "Jane Doe",
+      "git_email": "1+jdoe@users.noreply.github.com",
+      "git_signingkey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyDataOnly0000000000000000000000",
+      "git_ssh_program": "/usr/bin/ssh-keygen",
+      "vscode_extensions": ["Anthropic.claude-code", "not an id"],
+      "gh_extensions": ["https://github.com/nektos/gh-act", "not/a/valid/repo"]
+    }
+  },
+  "v1": {}
+}

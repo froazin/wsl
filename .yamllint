@@ -1,0 +1,13 @@
+# yamllint's settings for make lint, which lints the rendered fragments, as docs/build.md describes.
+extends: default
+
+rules:
+  # A cloud-config starts with #cloud-config, not ---.
+  document-start: disable
+  comments:
+    require-starting-space: false
+  # runcmd entries hold whole shell commands.
+  line-length: disable
+  # Jinja leaves a blank line where a block ends.
+  empty-lines:
+    max-end: 1

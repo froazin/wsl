@@ -22,7 +22,7 @@ The workflow runs on every push to `main`, with the same `paths` filter as [CI](
 flowchart LR
     accTitle: The jobs that release the user-data
     accDescr: A push to main that changes more than docs starts the workflow. The build job runs the CI checks, then compares the built user-data's SHA-1 with the latest release's. When they differ, the e2e job installs an Ubuntu instance on a Windows runner with the built user-data. When it passes, the release job creates a tag with the version commitizen works out, and a GitHub release with the user-data as its only asset.
-    push["Push to main"] -->|"not only docs"| build["build: make build, ShellCheck, shfmt, sha1sum, cz"]
+    push["Push to main"] -->|"not only docs"| build["build: make build, make lint, ShellCheck, shfmt, sha1sum, cz"]
     latest[("Latest release")] -->|"its Ubuntu.user-data"| build
     build -->|"SHA-1 differs, user-data as an artifact"| e2e["e2e: windows-2025"]
     build -->|"same SHA-1"| stop["Nothing to release"]
@@ -30,7 +30,7 @@ flowchart LR
     release -->|"tag vX.Y.Z and Ubuntu.user-data"| latest
 ```
 
-- **`build`** checks out the whole history, sets up the tools as the CI `checks` job does and adds commitizen. It runs the same checks, `make build`, ShellCheck and shfmt, so a push straight to `main` is checked too, and a failed check releases nothing. The code review runs only on pull requests, in CI. The job then compares the user-data with the latest release's, as [When a release is due](#when-a-release-is-due) describes. When a release is due, it works out the version, as [How the version is decided](#how-the-version-is-decided) describes, outputs the tag and uploads `dist/Ubuntu.user-data` as the `dist` artifact. Otherwise it outputs no tag, and the later jobs are skipped.
+- **`build`** checks out the whole history, sets up the tools as the CI `checks` job does and adds commitizen. It runs the same checks, `make build`, `make lint`, ShellCheck and shfmt, so a push straight to `main` is checked too, and a failed check releases nothing. The code review runs only on pull requests, in CI. The job then compares the user-data with the latest release's, as [When a release is due](#when-a-release-is-due) describes. When a release is due, it works out the version, as [How the version is decided](#how-the-version-is-decided) describes, outputs the tag and uploads `dist/Ubuntu.user-data` as the `dist` artifact. Otherwise it outputs no tag, and the later jobs are skipped.
 - **`e2e`** runs only when a release is due. See [End-to-end tests](#end-to-end-tests).
 - **`release`** needs both, so a failed build or end-to-end test skips it. It checks it's the newest run with `gh run list`, then downloads the artifact and runs `gh release create "$TAG" dist/Ubuntu.user-data --target "$GITHUB_SHA" --generate-notes`.
 

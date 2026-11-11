@@ -1,6 +1,6 @@
 # Build
 
-How the [`Makefile`](../Makefile) joins the cloud-init fragments in [`src/`](../src/) into the user-data users download. It's for engineers adding, changing or reordering a fragment, or changing the `Makefile`. The commands to run are in the README's [Building it](../README.md#building-it), and what the user-data does on an instance is in [Provisioning](provisioning.md).
+How the [`Makefile`](../Makefile) joins the cloud-init fragments in [`src/`](../src/) into the user-data users download, and how `make lint` checks them. It's for engineers adding, changing or reordering a fragment, or changing the `Makefile`. The commands to run are in the README's [Building it](../README.md#building-it), and what the user-data does on an instance is in [Provisioning](provisioning.md).
 
 ## Contents
 
@@ -60,20 +60,30 @@ The `Makefile` takes every `*.user-data` file in `src/`, sorted by name, so the 
 
 ## Validation
 
-Nothing validates the built user-data. `make build` only proves that make-mime can join the fragments. Nothing renders the Jinja, merges the parts or runs `cloud-init schema`. The code review checks those by reading, and the [end-to-end tests](releases.md#end-to-end-tests) install the user-data on a first boot before each release.
+`make build` only proves that make-mime can join the fragments. `make lint` checks each fragment as cloud-init reads it:
+
+1. For each instance data file in [`test/`](../test/), it writes every fragment to `dist/lint/<case>/<fragment>.yaml`. A Jinja fragment is rendered with `cloud-init devel render --instance-data`, and any other is copied as it is.
+1. `yamllint --strict` checks every result with the settings in [`.yamllint`](../.yamllint): yamllint's defaults, without the rules a cloud-config breaks on purpose, such as the `---` document start and the line length.
+1. `cloud-init schema -c` checks every result against cloud-init's schema. It catches a key with the wrong type, such as a `runcmd` that renders as `null`.
+
+There are two cases. `meta-data.json` sets every key, with placeholder values and an invalid entry in each extension list, so the `printf` lines for rejected entries are rendered. `no-meta-data.json` sets only `instance-id`, so the defaults are rendered, such as the `wsluser` user.
+
+`make lint` doesn't merge the parts or boot an instance. The code review checks the merge by reading, and the [end-to-end tests](releases.md#end-to-end-tests) install the user-data on a first boot before each release.
 
 ## Errors
 
 - make stops before it builds anything when `src/` has no fragments. `make clean` skips that check.
 - A failure in make-mime or `sed`, such as when cloud-init isn't installed, stops make with the command's error, and leaves no `dist/Ubuntu.user-data`, not even one from an earlier build.
+- `make lint` stops at the first fragment that fails to render, at any yamllint problem, warnings included, or at the first result that fails the schema. `cloud-init schema` also logs warnings that it can't read the instance's cached data, which don't fail it.
 - make exits with status 2 when a recipe fails.
 
 ## Tools
 
 - **cloud-init:** from apt, on a current Ubuntu, like the instance. It doesn't need root.
 - **make and sed:** from apt. The `Makefile` uses GNU make's functions and `sed -E`.
+- **yamllint:** from apt, for `make lint`.
 - **Shell:** shfmt reads its options from [`.editorconfig`](../.editorconfig), which also keeps the `Makefile` indented with tabs.
-- **No tests:** the project has no unit tests. The checks in the README's [Building it](../README.md#building-it) are the build and the shell lint.
+- **No tests:** the project has no unit tests. The checks in the README's [Building it](../README.md#building-it) are the build, `make lint` and the shell lint.
 
 ## Decisions
 
@@ -83,11 +93,12 @@ Nothing validates the built user-data. `make build` only proves that make-mime c
 - **One user-data, for Ubuntu.** The config targets Ubuntu, so there's one file, named `Ubuntu.user-data` after the instance `wsl --install Ubuntu` makes, rather than one per release of Ubuntu.
 - **cloud-init's command line, not a Python build.** `cloud-init devel make-mime` gives the same parts as calling its Python function (observed: the same content types and payloads), with no Python tooling to keep up. The cost is a `cd` into `src/` to name the parts.
 - **A fixed boundary.** It makes the build reproducible, so whether a release is due is decided by comparing hashes, rather than by a version someone bumps.
+- **Lint the rendered fragments.** A Jinja fragment isn't YAML until it's rendered: yamllint stops at its first `{% %}` line. Rendering with cloud-init's own command gives the YAML cloud-init would read, and lets its schema check it too.
 
 ## Limits
 
 - A fragment can't share a variable or macro with another, so shared code, such as `user` and `workspace`, is repeated.
-- Nothing checks the rendered user-data until the end-to-end tests in [Releases](releases.md) run, and they run only when a release is due.
+- `make lint` checks each fragment on its own, for the two cases in `test/` only. Nothing checks the merged user-data until the end-to-end tests in [Releases](releases.md) run, and they run only when a release is due.
 - Every fragment is in the user-data. To drop a feature, delete its fragment.
 - make splits file names at spaces, so a fragment whose name has a space breaks the build.
 - The hashes only match when the same make-mime builds the user-data. A cloud-init update that changes make-mime's output makes a release with no change to the fragments.
@@ -99,3 +110,5 @@ Nothing validates the built user-data. `make build` only proves that make-mime c
 - https://cloudinit.readthedocs.io/en/latest/reference/merging.html
 - https://cloudinit.readthedocs.io/en/latest/reference/datasources/wsl.html
 - https://www.gnu.org/software/make/manual/make.html#Errors
+- https://cloudinit.readthedocs.io/en/latest/reference/cli.html#schema
+- https://yamllint.readthedocs.io/en/stable/rules.html

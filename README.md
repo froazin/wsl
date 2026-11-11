@@ -138,14 +138,15 @@ sparseVhd=true
 Build on a current Ubuntu, or in a WSL instance built from this config, so the build uses a cloud-init close to the instance's. Install the tools from apt, then run the build and the checks from the repository's root:
 
 ```sh
-sudo apt-get install cloud-init make shellcheck shfmt
+sudo apt-get install cloud-init make shellcheck shfmt yamllint
 make build
+make lint
 shellcheck .github/scripts/*.sh
 shfmt -d .
 ```
 
 - `make build` joins every fragment in `src/`, in the order of their numbers, into `dist/Ubuntu.user-data`. It only rebuilds it when a fragment or the `Makefile` changes, and the same fragments build the same file. `make clean` deletes `dist/`. Edit `src/`, never `dist/`.
-- There are no unit tests, and nothing validates the rendered user-data. [Build](docs/build.md#validation) says what `make build` does and doesn't check.
+- `make lint` renders each fragment with the instance data in `test/`, then checks it with yamllint and `cloud-init schema`. There are no unit tests. [Build](docs/build.md#validation) says what the checks do and don't catch.
 - shfmt reads its options from `.editorconfig`, so run it without formatting flags: any flag such as `-i` makes it ignore `.editorconfig`.
 
 ### Testing a change

@@ -19,7 +19,7 @@ The meta-data is a YAML file the user writes to `%USERPROFILE%\.cloud-init\Ubunt
 
 The example sits in a `yaml` code block straight after a `<!-- meta-data example -->` comment in the README. The [end-to-end tests](releases.md#end-to-end-tests) fill it in for a first boot, and find it by that comment. Keep the comment and the block together, leave `username`, `git_name` and `git_email` empty on lines of their own, which the end-to-end tests fill in, and add every new key to the example. Nothing else checks the example before a release, as [Build](build.md#validation) says.
 
-Each key is read in the fragments in [`src/`](../src/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list, and `or 'wsluser'` for `username`), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A new key goes into the README's example.
+Each key is read in the fragments in [`src/`](../src/) that use it, at the top of the fragment, as `ds.meta_data.<key> or ''` (or `or []` for a list, and `or 'wsluser'` for `username`), so a missing key, an empty value and `null` all count as unset. cloud-init renders each fragment on its own, so a fragment that needs a key reads it itself, even when another fragment reads it too. A new key goes into the README's example, and into [`test/meta-data.json`](../test/meta-data.json) with a placeholder value, so `make lint` renders it (see [Build](build.md#validation)).
 
 Each fragment turns the keys it reads into the variables its cloud-config uses. This flowchart shows where each key ends up:
 

@@ -13,8 +13,9 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 | Path | Holds |
 | --- | --- |
 | `src/` | Every cloud-config fragment, one per feature, named `<NN>-<feature>.user-data` and merged in the order of their numbers. Before you add, change or renumber one, read [docs/provisioning.md](docs/provisioning.md) and [docs/build.md](docs/build.md). Before you add or change a meta-data key, read [docs/meta-data.md](docs/meta-data.md) too |
-| `dist/` | `Ubuntu.user-data`, the file each release publishes. `make build` writes it, and Git ignores it |
-| `Makefile` | `make build`, which joins the fragments into `dist/Ubuntu.user-data` with `cloud-init devel make-mime` and a fixed MIME boundary, and `make clean`. Before you change it, read [docs/build.md](docs/build.md). Nothing validates the rendered user-data |
+| `dist/` | `Ubuntu.user-data`, the file each release publishes, and the rendered fragments `make lint` checks, in `dist/lint/`. make writes them, and Git ignores them |
+| `Makefile` | `make build`, which joins the fragments into `dist/Ubuntu.user-data` with `cloud-init devel make-mime` and a fixed MIME boundary, `make lint`, which renders each fragment with each file in `test/` and checks it with yamllint and `cloud-init schema`, and `make clean`. Before you change it, read [docs/build.md](docs/build.md). Nothing checks the merged user-data |
+| `test/`, `.yamllint` | The instance data `make lint` renders the fragments with, one file per case, and yamllint's settings. A new meta-data key goes into `test/meta-data.json`, with a placeholder value |
 | `docs/` | Design docs for engineers changing the config |
 | `.github/workflows/ci.yml` | CI on pull requests: the checks and Claude's code review. Before you change it, read [docs/ci.md](docs/ci.md) |
 | `.github/workflows/release.yml`, `.github/scripts/` | The release workflow on `main`, with the end-to-end test on a Windows runner, and its scripts. Before you change them, read [docs/releases.md](docs/releases.md) |
@@ -35,7 +36,7 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 - **Edit `src/`, never `dist/`.** Run `make build` to rebuild `dist/`.
 - **Each fragment stands alone.** cloud-init renders each fragment's Jinja on its own, so a fragment sets every Jinja variable it uses, and every fragment keeps the shared `merge_how` that appends lists. See [docs/build.md](docs/build.md#how-the-build-works).
 - **Number fragments to order them.** A fragment's two-digit number sets where it merges and where its `runcmd` entries run. Number a new one into the gap where it belongs, rather than renumbering the rest. See [docs/build.md](docs/build.md#the-fragments).
-- **Build with make and the cloud-init CLI.** The build is the `Makefile` alone, with no manifests, version files or Python tooling. Keep it that small. The project has no unit tests.
+- **Build with make and the cloud-init CLI.** The build and its checks are the `Makefile` alone, with no manifests, version files or Python tooling. Keep it that small. The project has no unit tests.
 - **Keep `packages` in step with the dotfiles.** The fragments' `packages` list the dotfiles modules' dependencies. When a dotfiles module gains a dependency, add it here too.
 - **Don't write outside the repository to test.** Writing to the Windows profile (`%USERPROFILE%\.cloud-init`, `.wslconfig`), or installing or unregistering WSL instances, needs the user's go-ahead.
 - Run the checks in the README's [Building it](README.md#building-it) before you say a change works.

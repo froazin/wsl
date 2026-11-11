@@ -45,10 +45,14 @@ jobs:
       - name: Install the tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cloud-init make shellcheck shfmt
+          sudo apt-get install --yes --no-install-recommends cloud-init make shellcheck shfmt yamllint
 
       - name: Build the config
         run: make build
+
+      # Renders each fragment with the instance data in test/, then checks it with yamllint and cloud-init schema.
+      - name: Lint the fragments
+        run: make lint
 
       - name: Lint the shell scripts
         run: shellcheck .github/scripts/*.sh
@@ -256,7 +260,7 @@ jobs:
             3. Check each finding against the code before you post it. Drop any you can't back with evidence.
             4. Post each finding with `mcp__github_inline_comment__create_inline_comment`.
 
-            CI has already run `make build`, ShellCheck and shfmt, and they passed. `make build` only joins the fragments: nothing has rendered the user-data or run `cloud-init schema` on it, so check those by reading. The end-to-end tests on Windows runners haven't run: they run on main, before a release. Don't report on the pull request's title and description.
+            CI has already run `make build`, `make lint`, ShellCheck and shfmt, and they passed. `make lint` rendered each fragment with the two instance data files in `test/`, and checked each result with yamllint and `cloud-init schema`. Nothing has checked the merged user-data, or a fragment with other meta-data, so check those by reading. The end-to-end test on a Windows runner hasn't run: they run on main, before a release. Don't report on the pull request's title and description.
 
             ## What to report
 
