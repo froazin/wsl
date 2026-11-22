@@ -12,15 +12,15 @@ A reusable cloud-init config that builds an Ubuntu WSL instance for development 
 
 ## What it sets up
 
-- The packages a zsh workstation needs, plus podman and tools such as `gh`, `ripgrep`, `fd`, `btop`, `make`, `yamllint` and commitizen (`cz`). apt installs them without their recommended packages, and keeps that setting for anything you install later.
+- The packages a zsh workstation needs, plus tools such as `gh`, `ripgrep`, `fd`, `btop`, `make`, `yamllint` and commitizen (`cz`). apt installs them without their recommended packages, and keeps that setting for anything you install later.
 - A KVM and libvirt stack for running virtual machines inside WSL.
-- podman's Docker-compatible API socket: rootless for every user, and the system socket for root. `podman compose` and `docker compose` run podman-compose.
+- Docker Engine from Docker's own repository, with the buildx and compose plugins, and the user in the `docker` group.
 - `/etc/wsl.conf` with systemd on, and swap off, which WSL turns on by default.
 - Windows tools (VS Code, the 1Password CLI, OpenSSH and `clip`) linked into the Linux `PATH`, and `$BROWSER` set so `xdg-open` opens things in Windows.
 - A user with zsh and passwordless sudo, named by your meta-data's `username`, or `wsluser` when it gives none.
 - For that user: `uv`, `pulumi`, Biome, `nvm` with the current Node.js LTS as its default, Claude Code, the Claude Platform CLI (`ant`) and the VS Code and GitHub CLI extensions you list.
 - A git config for that user, with optional commit signing.
-- The [froazin/dotfiles](https://github.com/froazin/dotfiles) zsh, git, podman and Claude Code config, for the user and for root.
+- The [froazin/dotfiles](https://github.com/froazin/dotfiles) zsh, git and Claude Code config, for the user and for root.
 
 ## Using it
 
@@ -48,6 +48,8 @@ You need Windows with WSL 2. cloud-init reads two files from `%USERPROFILE%\.clo
    ```
 
    You can pick a specific release of Ubuntu by naming the instance `Ubuntu`, such as with `wsl --install Ubuntu-26.04 --name Ubuntu`. cloud-init runs on the first boot only, and the first launch waits for it.
+
+   If you use Docker Desktop, turn off its WSL integration for `Ubuntu` in **Settings** > **Resources** > **WSL Integration**. The instance runs its own Docker Engine, and Docker says running both in one distribution can cause conflicts.
 
 1. When it finishes, restart the instance so the `wsl.conf` settings and the new group memberships take effect:
 

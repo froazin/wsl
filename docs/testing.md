@@ -71,7 +71,7 @@ wsl.exe -d Test -u root -e sh -s -- <username> "<git name>" < .github/scripts/ch
 
 It reads the script from stdin, so it works from a clone on the Linux file system, which the instance can't see. Beyond its checks, try what you changed for real, such as:
 
-- `podman run` and `podman compose up` as the user, which need the user session (see below).
+- `docker run` and `docker compose up` as the user.
 - `node` and `npm` in an interactive `zsh`, which is where the dotfiles load nvm.
 - A VM's network device: `qemu-system-x86_64 -M q35 -accel kvm -display none -device virtio-net-pci` fails at once when its ROM is missing.
 
@@ -81,7 +81,7 @@ Every WSL 2 instance runs in one virtual machine (VM), so instances share its ke
 
 | Shared | What happens | Recovery |
 | --- | --- | --- |
-| cgroup tree | The second instance's `user@1000.service` fails with "Failed to spawn executor: Device or resource busy", so WSL reports "Failed to start the systemd user session" and the user's `podman.socket` doesn't start. When it did start, stopping it timed out with "Processes still around after final SIGKILL", from the other instance's processes | Hand the session over, as below |
+| cgroup tree | The second instance's `user@1000.service` fails with "Failed to spawn executor: Device or resource busy", so WSL reports "Failed to start the systemd user session". When it did start, stopping it timed out with "Processes still around after final SIGKILL", from the other instance's processes | Hand the session over, as below |
 | cgroup tree | `getty@tty1.service` fails with "Failed to spawn executor: No such file or directory" in one instance when the other's starts, which leaves it `degraded`. It hit the main instance when the test instance booted, and the test instance when the main one's was restarted | In the failed instance: `sudo systemctl reset-failed getty@tty1.service`, then `sudo systemctl restart getty@tty1.service` |
 | Network namespace | The second instance's libvirt `default` network doesn't start: dnsmasq reports "failed to create listening socket ... Address already in use". The same happens to any socket both bind, such as `iscsid.socket`'s abstract socket when `open-iscsi` is installed | Expected. Each network works while only one instance runs it |
 | `binfmt_misc` table | Stopping or removing another instance sometimes clears every entry, `WSLInterop` included, so `wsl.exe`, `code` and every other Windows program fail with "exec format error" in all running instances | `sudo systemctl restart systemd-binfmt.service` in each instance, from a shell that's already open, or `wsl -d <name> -u root systemctl restart systemd-binfmt.service` from PowerShell |
@@ -92,13 +92,13 @@ The instances share one kernel boot ID, so `journalctl -b` in either shows both 
 
 ### Handing over the user session
 
-To test the user's services, such as rootless podman, move uid 1000's user manager to the test instance and back. The main instance keeps running. Its shells and VS Code's server run outside `user@1000.service`, so they carry on (observed):
+To test anything that runs in the user's systemd manager, move uid 1000's user manager to the test instance and back. The main instance keeps running. Its shells and VS Code's server run outside `user@1000.service`, so they carry on (observed):
 
 1. In the main instance: `sudo systemctl stop user@1000.service`.
 1. In the test instance, as root: `systemctl reset-failed user@1000.service`, then `systemctl start user@1000.service`.
-1. Test, such as with `systemctl --user -M <username>@ is-active podman.socket` and `podman run` as the user.
+1. Test, such as with `systemctl --user -M <username>@ is-system-running`.
 1. In the test instance: `systemctl stop user@1000.service`.
-1. In the main instance: `sudo systemctl start user@1000.service`, and check `systemctl --user is-active podman.socket`.
+1. In the main instance: `sudo systemctl start user@1000.service`, and check `systemctl --user is-system-running`.
 
 ## Cleaning up
 
