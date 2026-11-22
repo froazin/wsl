@@ -62,6 +62,16 @@ gh_is_from_cli_github()
     apt-cache policy gh | grep -A1 '^ \*\*\*' | grep -q cli.github.com
 }
 
+docker_is_from_docker()
+{
+    apt-cache policy docker-ce | grep -A1 '^ \*\*\*' | grep -q download.docker.com
+}
+
+has_no_candidate()
+{
+    apt-cache policy "$1" | grep -qx '  Candidate: (none)'
+}
+
 network_autostarts()
 {
     virsh --connect qemu:///system net-info default | grep -Eq '^Autostart: +yes'
@@ -85,12 +95,6 @@ is_masked()
 recommends_are_off()
 {
     apt-config dump APT::Install-Recommends | grep -qx 'APT::Install-Recommends "false";'
-}
-
-# podman prints its notice about an external compose provider on stderr.
-compose_is_quiet()
-{
-    podman compose version > /dev/null 2>&1 && [ -z "$(podman compose version 2>&1 > /dev/null)" ]
 }
 
 # nvm is loaded by the dotfiles' interactive zsh, so check there.
@@ -128,14 +132,21 @@ check "BROWSER is set for login shells" grep -q 'BROWSER=/usr/local/bin/start' /
 check "/usr/local/bin/start is executable" test -x /usr/local/bin/start
 check "the locale is en_GB.UTF-8" grep -q 'LANG=en_GB.UTF-8' /etc/default/locale
 check "apt installs no recommends" recommends_are_off
-check "podman compose uses podman-compose" grep -q 'compose_providers = \["/usr/bin/podman-compose"\]' /etc/containers/containers.conf.d/50-compose.conf
+check "docker is pinned to download.docker.com" grep -qx 'Pin: origin download.docker.com' /etc/apt/preferences.d/docker
+check "Docker leaves the forwarding policy alone" grep -q '"ip-forward-no-drop": true' /etc/docker/daemon.json
 
 # Packages, the GitHub CLI source and the links runcmd makes
-for cmd in zsh git gh jq curl direnv fzf python3 make cz shellcheck shfmt yamllint podman podman-compose buildah skopeo btop tree rg nmap virsh qemu-system-x86_64; do
+for cmd in zsh git gh jq curl direnv fzf python3 make cz shellcheck shfmt yamllint docker btop tree rg nmap virsh qemu-system-x86_64; do
     check "$cmd is installed" command -v "$cmd"
 done
 
 check "gh comes from cli.github.com" gh_is_from_cli_github
+check "docker-ce comes from download.docker.com" docker_is_from_docker
+for pkg in docker.io containerd runc podman-docker; do
+    check "Ubuntu's $pkg can't be installed" has_no_candidate "$pkg"
+done
+check "docker compose runs" docker compose version
+check "docker buildx runs" docker buildx version
 check "fd links to fdfind" links_to /usr/local/bin/fd /usr/bin/fdfind
 check "fd runs" /usr/local/bin/fd --version
 
@@ -148,12 +159,10 @@ check "swap is off" swap_is_off
 check "/ is a shared mount" root_is_shared
 check "disable-swap.service is enabled" systemctl is-enabled disable-swap.service
 check "make-root-rshared.service is enabled" systemctl is-enabled make-root-rshared.service
-check "root's podman.socket is active" systemctl is-active podman.socket
-check "podman.socket is enabled for users" systemctl --global is-enabled podman.socket
+check "docker.service is active" systemctl is-active docker.service
 check "libvirt's default network autostarts" network_autostarts
 check "finalrd.service is masked" is_masked finalrd.service
 check "iscsid.socket is masked" is_masked iscsid.socket
-check "podman compose prints no provider notice" compose_is_quiet
 
 # Root's shell and dotfiles
 check "root's login shell is zsh" login_shell_is root /usr/bin/zsh
@@ -164,10 +173,11 @@ home="/home/$user"
 
 check "$user has uid 1000" has_uid "$user" 1000
 check "$user's login shell is zsh" login_shell_is "$user" /usr/bin/zsh
-for group in sudo kvm libvirt users; do
+for group in sudo kvm libvirt docker users; do
     check "$user is in $group" in_group "$user" "$group"
 done
 check "$user has passwordless sudo" runuser -u "$user" -- sudo -n true
+check "$user can reach the Docker daemon" runuser -u "$user" -- docker info
 
 if [ -n "$git_name" ]; then
     check "git reads user.name back for $user" git_config_is "$user" user.name "$git_name"

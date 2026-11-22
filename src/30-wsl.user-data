@@ -37,7 +37,28 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 
+  # Bind mounts with shared or slave propagation, such as a container's, need
+  # / shared. Backs up the [boot] command above.
+  - path: /etc/systemd/system/make-root-rshared.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Make / a recursively shared mount
+      ConditionVirtualization=wsl
+      DefaultDependencies=no
+      After=local-fs.target
+      Before=sysinit.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/mount --make-rshared /
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=sysinit.target
+
 runcmd:
   # Picks up the units every part writes.
   - [systemctl, daemon-reload]
   - [systemctl, enable, --now, disable-swap.service]
+  - [systemctl, enable, --now, make-root-rshared.service]

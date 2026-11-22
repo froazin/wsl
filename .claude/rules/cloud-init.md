@@ -68,9 +68,9 @@ other files from the Windows side.
 - Module order: init stage runs `write_files` and `users`; final stage runs
   packages, deferred `write_files`, then `runcmd` (a `#!/bin/sh` script with
   no `set -e`, so entries are independent). Anything that needs a package or
-  a package-created group (`libvirt`) belongs in `runcmd` or deferred
-  `write_files`. Listing `libvirt` in `users.groups` makes it an ordinary
-  group that takes gid 1000.
+  a package-created group (`libvirt`, `docker`) belongs in `runcmd` or
+  deferred `write_files`. Listing `libvirt` in `users.groups` makes it an
+  ordinary group that takes gid 1000.
 - `/etc/wsl.conf` must keep `systemd=true` and `appendWindowsPath=false`
   (otherwise `xdg-open` bypasses `$BROWSER`), and must have no `[user]` or
   `[time]` section: the OOBE writes `[user] default=`, and the time zone

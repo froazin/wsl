@@ -53,7 +53,7 @@ cloud-init runs once, on first boot, and Ubuntu's out-of-box experience (OOBE), 
 
 ### Parts and rendering
 
-The user-data is one part per fragment, and one fragment per feature, such as `40-podman.user-data`, each a cloud-config. This doc calls each fragment by its feature, such as `podman`. cloud-init renders each part that starts with `## template: jinja` on its own, reading the meta-data from `ds.meta_data`, then merges the parts in the order of their numbers. Every part's `merge_how` appends its lists to the earlier parts', so `packages` and `write_files` hold every part's entries and `runcmd` runs in the fragments' order. [Build](build.md#how-the-build-works) covers the parts' rules.
+The user-data is one part per fragment, and one fragment per feature, such as `40-docker.user-data`, each a cloud-config. This doc calls each fragment by its feature, such as `docker`. cloud-init renders each part that starts with `## template: jinja` on its own, reading the meta-data from `ds.meta_data`, then merges the parts in the order of their numbers. Every part's `merge_how` appends its lists to the earlier parts', so `packages` and `write_files` hold every part's entries and `runcmd` runs in the fragments' order. [Build](build.md#how-the-build-works) covers the parts' rules.
 
 A fragment sets every variable it uses, such as `user`, and normalises and validates the keys it reads, as [WSL meta-data](meta-data.md) describes. `development` and `dotfiles` build paths with the `workspace` macro, which turns a clone URL into `workspaces/<host>/<owner>/<repo>`, so the dotfiles' clone lands in `~/workspaces/github.com/froazin/dotfiles`.
 
@@ -66,7 +66,7 @@ cloud-init runs its modules in a fixed order, not in the order the keys appear i
 ```mermaid
 flowchart TD
     accTitle: cloud-init modules the user-data uses
-    accDescr: The init stage writes the non-deferred files and creates the user. The config stage sets the locale, adds the GitHub CLI apt source and writes the runcmd script. The final stage installs packages, writes the deferred files and runs the runcmd script.
+    accDescr: The init stage writes the non-deferred files and creates the user. The config stage sets the locale, adds the Docker and GitHub CLI apt sources and writes the runcmd script. The final stage installs packages, writes the deferred files and runs the runcmd script.
     wf["write_files"] -->|then| users["users_groups"]
     users -->|config stage| locale["locale, apt_configure"]
     locale -->|then| runcmd["runcmd writes its script"]
@@ -76,10 +76,10 @@ flowchart TD
 ```
 
 - **Init stage:** `write_files` writes the system files, then `users` creates the user, named by `username` or `wsluser`, with uid 1000, zsh, passwordless sudo and a locked password.
-- **Config stage:** `locale` sets `en_GB.UTF-8` and apt adds the GitHub CLI source and its key. The `runcmd` module then writes the commands out as a script.
+- **Config stage:** `locale` sets `en_GB.UTF-8` and apt adds the Docker and GitHub CLI sources and their keys. The `runcmd` module then writes the commands out as a script.
 - **Final stage:** apt updates, upgrades and installs `packages`. The deferred files go into the user's home. The `runcmd` script runs last.
 
-Anything that needs a package, or a group a package creates such as `libvirt`, is in `runcmd` or a deferred file. The files in the user's home are deferred because `write_files` runs before `users_groups` creates the user.
+Anything that needs a package, or a group a package creates such as `libvirt` or `docker`, is in `runcmd` or a deferred file. The files in the user's home are deferred because `write_files` runs before `users_groups` creates the user.
 
 ### System files
 
@@ -88,12 +88,11 @@ Anything that needs a package, or a group a package creates such as `libvirt`, i
 | `/etc/wsl.conf` (`wsl`) | Turns on systemd, remounts `/` shared at boot and keeps the Windows `PATH` out (`appendWindowsPath=false`). Has no `[user]` section, because the OOBE writes `default=` |
 | `/etc/apt/apt.conf.d/94cloud-init-config` (`base`) | `APT::Install-Recommends "false"`, from the `apt` module's `conf`. It's in place before the packages install, and stays for later installs |
 | `/etc/apt/preferences.d/github-cli` (`github-cli`) | Pins `gh` from `cli.github.com` at 600, above the 510 Ubuntu Pro gives ESM |
-| `/etc/containers/nodocker` (`podman`) | Stops `podman-docker`'s `docker` wrapper printing its "Emulate Docker CLI using podman" notice |
-| `/etc/containers/containers.conf.d/50-compose.conf` (`podman`) | Makes `/usr/bin/podman-compose` the provider for `podman compose`, and `docker compose` through `podman-docker`, and turns off the notice podman prints before running an external provider |
+| `/etc/apt/preferences.d/docker` (`docker`) | Pins Docker's packages from `download.docker.com` at 600, and Ubuntu's builds of the same tools, such as `docker.io`, `containerd` and `runc`, at -1 from every origin |
+| `/etc/docker/daemon.json` (`docker`) | `ip-forward-no-drop`, so dockerd never sets the forwarding policy to drop |
 | `/etc/profile.d/browser.sh`, `/etc/environment.d/90-browser.conf` (`windows`) | Set `BROWSER=/usr/local/bin/start` |
 | `/etc/systemd/system/disable-swap.service` (`wsl`) | Runs `swapoff -a`, because WSL attaches swap before systemd starts: by default, and even with `swap=0` in `.wslconfig` |
-| `/etc/systemd/system/make-root-rshared.service` (`podman`) | Runs `mount --make-rshared /` before `sysinit.target`, backing up the `[boot]` command podman needs |
-| `/etc/systemd/user/podman.socket.d/10-not-root.conf` (`podman`) | `ConditionUser=!root`, so root's user manager doesn't start a second rootful podman API |
+| `/etc/systemd/system/make-root-rshared.service` (`wsl`) | Runs `mount --make-rshared /` before `sysinit.target`, backing up the `[boot]` command, for bind mounts with shared or slave propagation |
 | `/usr/local/bin/start` (`windows`) | Opens a URL or file with its Windows handler through PowerShell `Start-Process`. Used as `$BROWSER` |
 
 `git` writes two deferred files into the user's home: `~/.gitconfig` and `~/.config/git/allowed_signers`. [WSL meta-data](meta-data.md) says when each is written.
@@ -105,10 +104,10 @@ cloud-init writes `runcmd` out as one `#!/bin/sh` script with no `set -e`, so ea
 ```mermaid
 flowchart TD
     accTitle: runcmd order
-    accDescr: runcmd runs the fragments' entries in the order of their numbers. It links the Windows tools and fd, enables the system units and the global podman socket, sets up libvirt and masks the iSCSI units, sets zsh for root, then makes the user's workspaces, installs their tools, Node.js and extensions and runs install.sh for the user and root.
-    links["windows, utilities: ln -sfn Windows tools and fd"] -->|then| units["wsl, podman: daemon-reload, enable --now disable-swap, make-root-rshared"]
-    units -->|then| global["podman: systemctl --global enable podman.socket, enable --now podman.socket"]
-    global -->|then| virsh["virtualisation: virsh net-autostart default, usermod -aG libvirt, mask finalrd and iscsid"]
+    accDescr: runcmd runs the fragments' entries in the order of their numbers. It links the Windows tools and fd, enables the system units, adds the user to the docker group, sets up libvirt and masks the iSCSI units, sets zsh for root, then makes the user's workspaces, installs their tools, Node.js and extensions and runs install.sh for the user and root.
+    links["windows, utilities: ln -sfn Windows tools and fd"] -->|then| units["wsl: daemon-reload, enable --now disable-swap, make-root-rshared"]
+    units -->|then| docker["docker: usermod -aG docker"]
+    docker -->|then| virsh["virtualisation: virsh net-autostart default, usermod -aG libvirt, mask finalrd and iscsid"]
     virsh -->|then| shells["users: usermod -s for root"]
     shells -->|then| prep["git: mkdir workspaces"]
     prep -->|runuser -l| tools["development: uv, pulumi, biome, nvm, Node.js LTS, claude, ant"]
@@ -118,7 +117,6 @@ flowchart TD
 ```
 
 - Ubuntu installs `fd-find`'s command as `fdfind`, because another package owns the name `fd`. `runcmd` links `/usr/local/bin/fd` to `/usr/bin/fdfind`, which apt has installed by then.
-- The global `podman.socket` enable, in `podman`, comes before the first `runuser -l`, in `development`. That entry starts the user's systemd manager, which reads global wants only when it starts.
 - `virtualisation` masks `finalrd.service` and `iscsid.socket`. They come from `open-iscsi`, which libvirt's iSCSI storage driver brings in only as a recommend, so a fresh instance doesn't have them. The masks keep them off if a later install brings them in: `iscsid.socket` binds an abstract socket that clashes between instances (see [Testing](testing.md#running-beside-another-instance)), and `finalrd` sets up a pivot root for shutdown that a WSL instance doesn't need.
 - `development` installs the current Node.js LTS with nvm, under `bash`, and makes `lts/*` nvm's default, for the user only. The dotfiles' zsh loads nvm in interactive shells, which puts `node` and `npm` on `PATH` there.
 - Root's `usermod -s` runs only when `/usr/bin/zsh` is executable, so a failed package install can't leave a login shell that doesn't exist. Root's shell is set before root's install, so the zsh module's `$SHELL` check sees zsh and doesn't warn.
@@ -142,7 +140,8 @@ flowchart TD
 
 - The repository is public. The fragments hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only personal account name in them is the dotfiles' repository URL.
 - Only validated meta-data values reach shell commands. `username` is the exception: it's trusted as written (see [WSL meta-data](meta-data.md#limits)).
-- The GitHub CLI apt key is embedded in `github-cli`, with its fingerprint in a comment, rather than fetched at boot.
+- The Docker and GitHub CLI apt keys are embedded in `docker` and `github-cli`, with their fingerprints in comments, rather than fetched at boot.
+- The `docker` group lets its members run containers as root through dockerd, so it's root-equivalent. It adds nothing for the user, who has passwordless sudo.
 - `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user, and nvm is cloned over HTTPS and its `install.sh` run as the user, then downloads Node.js from nodejs.org. Their integrity rests on those hosts and TLS.
 - `/usr/local/bin/start` passes its target to PowerShell in an environment variable through `WSLENV`, never in the command, so the target is never parsed as code.
 - The user named by `username`, or `wsluser`, gets passwordless sudo, and their password is locked.
@@ -150,11 +149,12 @@ flowchart TD
 ## Decisions
 
 - **One fragment per feature.** cloud-init's own MIME parts and merging join them, so each feature reads on its own, and a fragment's number places it in the merge. See [Build](build.md#decisions).
-- **No recommended packages.** Recommends brought in about 180 packages a headless instance doesn't use, such as a GUI terminal, X11 tools, QEMU's GUI and audio modules, extra libvirt storage drivers and `docker-compose-v2`. The `apt` module's `conf` turns them off for every install, the only way cloud-init offers: `packages` has no per-package option. Each fragment lists the recommends it needs instead, such as `passt`, `aardvark-dns`, `catatonit`, `containers-storage` and `nftables` for rootless podman and podman-compose. The setting stays, so packages installed by hand later come without their recommends too.
-- **podman-compose as the compose provider.** It's set in a `containers.conf.d` drop-in rather than left to podman's search, which uses the first compose tool it finds, so installing `docker-compose` later would change it.
+- **No recommended packages.** Recommends brought in about 180 packages a headless instance doesn't use, such as a GUI terminal, X11 tools, QEMU's GUI and audio modules, extra libvirt storage drivers and `docker-compose-v2`. The `apt` module's `conf` turns them off for every install, the only way cloud-init offers: `packages` has no per-package option. Each fragment lists the recommends it needs instead, such as `docker-buildx-plugin`, `docker-compose-plugin` and `pigz` for Docker. The setting stays, so packages installed by hand later come without their recommends too.
+- **Docker Engine from Docker's repository.** Docker's packages follow its releases, where Ubuntu's `docker.io` lags several minor versions behind. The preferences file blocks Ubuntu's builds by package name from every origin, because Ubuntu Pro's ESM origins aren't `o=Ubuntu`, so an origin pin would let them through.
+- **The `docker` group, not rootless Docker.** A rootful daemon outlives login sessions and doesn't depend on uid 1000's user manager, which clashes between instances (see [Testing](testing.md#running-beside-another-instance)). VS Code Dev Containers documents the `docker` group, and the group gives the user nothing sudo doesn't.
+- **`ip-forward-no-drop`.** dockerd sets the forwarding policy to drop only when it has to turn IP forwarding on itself, so without the option the policy would depend on whether libvirt's NAT network started first.
 - **Native cloud-init modules over custom scripts.** Files, users, apt sources and packages use their modules. `runcmd` holds only what has no module.
 - **Installers run as the user** with `runuser -l`, so the tools live in the user's home and update themselves. nvm is cloned and checked out at its newest tag, and `ant` is unpacked with `tar -m` so zsh notices the new binary and regenerates its completion.
-- **`systemctl --global` instead of `--user`.** `runcmd` has no user bus. The `ConditionUser=!root` drop-in keeps the global enable out of root's user manager, which `sudo su` starts.
 - **Root's shell through `usermod`.** `users:` skips existing users, root included, and would lock root's password.
 - **Windows tools by link, not the Windows `PATH`.** With the Windows `PATH` appended, `xdg-open` finds `explorer.exe` and bypasses `$BROWSER`. The links bring in only the five tools listed.
 - **`WSL_DISTRO_NAME` from `wslpath`.** VS Code's launcher installs into `~/.vscode-server` only when it's set, and `runuser` clears it. The value only labels the remote.
@@ -173,7 +173,8 @@ Only a throwaway instance, as [Testing](testing.md) describes, exercises the dat
 - cloud-init finishes with a recoverable error, "Failed to wait for network", on every instance. The user-data is a MIME multipart file, not plain cloud-config, so cloud-init waits for the network at the start of its network stage by starting `systemd-networkd-wait-online.service`, which Ubuntu's WSL image masks. `cloud-init status --long` lists it, and nothing else is affected (observed with the earlier single Jinja file; cloud-init's `_should_wait_via_user_data` waits for any user-data that isn't plain cloud-config).
 - The Windows tool paths are fixed. A tool installed elsewhere gets a dangling link.
 - `ant`'s architecture is chosen only for `x86_64` and `aarch64`.
-- WSL instances share one VM, with its cgroup tree, network namespace and `binfmt_misc` table. Two instances built from this config clash over uid 1000's user manager, libvirt's `default` network and other units, and stopping one can break Windows interop in the other. [Testing](testing.md#running-beside-another-instance) lists what was observed and how to recover.
+- WSL instances share one VM, with its cgroup tree, network namespace and `binfmt_misc` table. Two instances built from this config clash over uid 1000's user manager, libvirt's `default` network, dockerd's bridge and firewall rules (inferred) and other units, and stopping one can break Windows interop in the other. [Testing](testing.md#running-beside-another-instance) lists what was observed and how to recover.
+- Docker Desktop's WSL integration, when it's on for the instance, adds Desktop's own `docker` CLI and socket. Docker says running Desktop beside a Docker Engine installed in the distribution can cause conflicts.
 - `node` and `npm` are on `PATH` only in shells that load nvm, such as the dotfiles' interactive zsh. Scripts run with `zsh -c` or `sh` don't get them.
 
 ## Sources
@@ -183,3 +184,6 @@ Only a throwaway instance, as [Testing](testing.md) describes, exercises the dat
 - https://cloudinit.readthedocs.io/en/latest/reference/modules.html
 - https://cloudinit.readthedocs.io/en/latest/reference/merging.html
 - https://learn.microsoft.com/en-us/windows/wsl/wsl-config
+- https://docs.docker.com/engine/install/ubuntu/
+- https://docs.docker.com/engine/network/packet-filtering-firewalls/
+- https://docs.docker.com/desktop/features/wsl/
