@@ -30,8 +30,8 @@ packages:
   - python3
 
 runcmd:
-  # ~/.zshenv does not exist yet, so PATH gets its directories here; otherwise
-  # the installer cannot see claude and skips the claude module.
-  - [runuser, -l, "{{ user }}", -c, "{ [ -d {{ dotfiles_dir }}/.git ] || git clone {{ dotfiles_repo }} {{ dotfiles_dir }}; } && PATH=\"$HOME/.local/bin:$HOME/.pulumi/bin:$PATH\" sh {{ dotfiles_dir }}/src/install.sh"]
+  # ~/.zshenv does not exist yet, so PATH gets ~/.local/bin here; otherwise the
+  # installer cannot see claude and skips the claude module.
+  - [runuser, -l, "{{ user }}", -c, "{ [ -d {{ dotfiles_dir }}/.git ] || git clone {{ dotfiles_repo }} {{ dotfiles_dir }}; } && PATH=\"$HOME/.local/bin:$PATH\" sh {{ dotfiles_dir }}/src/install.sh"]
   # runcmd has no HOME; runuser -l sets HOME=/root, so the path cannot use ~.
   - [runuser, -l, root, -c, "sh /home/{{ user }}/{{ dotfiles_rel }}/src/install.sh"]

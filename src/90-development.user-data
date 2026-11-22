@@ -22,9 +22,8 @@ packages:
 
 runcmd:
   # Official installers, run as the user so they can update themselves. The
-  # dotfiles' .zshenv puts ~/.local/bin and ~/.pulumi/bin on PATH.
+  # dotfiles' .zshenv puts ~/.local/bin on PATH.
   - [runuser, -l, "{{ user }}", -c, "curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh"]
-  - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://get.pulumi.com | sh -s -- --no-edit-path"]
   # Biome's installer needs bash.
   - [runuser, -l, "{{ user }}", -c, "curl -fsSL https://biomejs.dev/install | bash -s -- --no-modify-path"]
   # nvm's install.sh installs its own pinned release into ~/.nvm, so check out

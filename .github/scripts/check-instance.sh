@@ -72,6 +72,11 @@ has_no_candidate()
     apt-cache policy "$1" | grep -qx '  Candidate: (none)'
 }
 
+is_from_hashicorp()
+{
+    apt-cache policy "$1" | grep -A1 '^ \*\*\*' | grep -q apt.releases.hashicorp.com
+}
+
 network_autostarts()
 {
     virsh --connect qemu:///system net-info default | grep -Eq '^Autostart: +yes'
@@ -128,6 +133,7 @@ fi
 check "wsl.conf turns systemd on" grep -qx 'systemd=true' /etc/wsl.conf
 check "wsl.conf keeps the Windows PATH out" grep -qx 'appendWindowsPath=false' /etc/wsl.conf
 check "gh is pinned to cli.github.com" grep -qx 'Pin: origin cli.github.com' /etc/apt/preferences.d/github-cli
+check "terraform and packer are pinned to apt.releases.hashicorp.com" grep -qx 'Pin: origin apt.releases.hashicorp.com' /etc/apt/preferences.d/hashicorp
 check "BROWSER is set for login shells" grep -q 'BROWSER=/usr/local/bin/start' /etc/profile.d/browser.sh
 check "/usr/local/bin/start is executable" test -x /usr/local/bin/start
 check "the locale is en_GB.UTF-8" grep -q 'LANG=en_GB.UTF-8' /etc/default/locale
@@ -136,7 +142,7 @@ check "docker is pinned to download.docker.com" grep -qx 'Pin: origin download.d
 check "Docker leaves the forwarding policy alone" grep -q '"ip-forward-no-drop": true' /etc/docker/daemon.json
 
 # Packages, the GitHub CLI source and the links runcmd makes
-for cmd in zsh git gh jq curl direnv fzf python3 make cz shellcheck shfmt yamllint docker btop tree rg nmap virsh qemu-system-x86_64; do
+for cmd in zsh git gh jq curl direnv fzf python3 make cz shellcheck shfmt yamllint docker terraform packer btop tree rg nmap virsh qemu-system-x86_64; do
     check "$cmd is installed" command -v "$cmd"
 done
 
@@ -147,6 +153,9 @@ for pkg in docker.io containerd runc podman-docker; do
 done
 check "docker compose runs" docker compose version
 check "docker buildx runs" docker buildx version
+for pkg in terraform packer; do
+    check "$pkg comes from apt.releases.hashicorp.com" is_from_hashicorp "$pkg"
+done
 check "fd links to fdfind" links_to /usr/local/bin/fd /usr/bin/fdfind
 check "fd runs" /usr/local/bin/fd --version
 
@@ -188,7 +197,7 @@ check "$user's workspaces exist" test -d "$home/workspaces"
 check "the dotfiles are cloned for $user" test -d "$home/workspaces/github.com/froazin/dotfiles/.git"
 check "the dotfiles are installed for $user" test -e "$home/.zshrc"
 
-for tool in .local/bin/uv .local/bin/claude .local/bin/ant .local/bin/biome .pulumi/bin/pulumi; do
+for tool in .local/bin/uv .local/bin/claude .local/bin/ant .local/bin/biome; do
     check "$user has ~/$tool" test -x "$home/$tool"
 done
 check "$user has nvm" test -s "$home/.nvm/nvm.sh"
