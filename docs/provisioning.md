@@ -66,7 +66,7 @@ cloud-init runs its modules in a fixed order, not in the order the keys appear i
 ```mermaid
 flowchart TD
     accTitle: cloud-init modules the user-data uses
-    accDescr: The init stage writes the non-deferred files and creates the user. The config stage sets the locale, adds the Docker and GitHub CLI apt sources and writes the runcmd script. The final stage installs packages, writes the deferred files and runs the runcmd script.
+    accDescr: The init stage writes the non-deferred files and creates the user. The config stage sets the locale, adds the Docker, GitHub CLI and HashiCorp apt sources and writes the runcmd script. The final stage installs packages, writes the deferred files and runs the runcmd script.
     wf["write_files"] -->|then| users["users_groups"]
     users -->|config stage| locale["locale, apt_configure"]
     locale -->|then| runcmd["runcmd writes its script"]
@@ -76,7 +76,7 @@ flowchart TD
 ```
 
 - **Init stage:** `write_files` writes the system files, then `users` creates the user, named by `username` or `wsluser`, with uid 1000, zsh, passwordless sudo and a locked password.
-- **Config stage:** `locale` sets `en_GB.UTF-8` and apt adds the Docker and GitHub CLI sources and their keys. The `runcmd` module then writes the commands out as a script.
+- **Config stage:** `locale` sets `en_GB.UTF-8` and apt adds the Docker, GitHub CLI and HashiCorp sources and their keys. The `runcmd` module then writes the commands out as a script.
 - **Final stage:** apt updates, upgrades and installs `packages`. The deferred files go into the user's home. The `runcmd` script runs last.
 
 Anything that needs a package, or a group a package creates such as `libvirt` or `docker`, is in `runcmd` or a deferred file. The files in the user's home are deferred because `write_files` runs before `users_groups` creates the user.
@@ -90,6 +90,7 @@ Anything that needs a package, or a group a package creates such as `libvirt` or
 | `/etc/apt/preferences.d/github-cli` (`github-cli`) | Pins `gh` from `cli.github.com` at 600, above the 510 Ubuntu Pro gives ESM |
 | `/etc/apt/preferences.d/docker` (`docker`) | Pins Docker's packages from `download.docker.com` at 600, and Ubuntu's builds of the same tools, such as `docker.io`, `containerd` and `runc`, at -1 from every origin |
 | `/etc/docker/daemon.json` (`docker`) | `ip-forward-no-drop`, so dockerd never sets the forwarding policy to drop |
+| `/etc/apt/preferences.d/hashicorp` (`hashicorp`) | Pins `terraform` and `packer` from `apt.releases.hashicorp.com` at 600, above ESM's 510 |
 | `/etc/profile.d/browser.sh`, `/etc/environment.d/90-browser.conf` (`windows`) | Set `BROWSER=/usr/local/bin/start` |
 | `/etc/systemd/system/disable-swap.service` (`wsl`) | Runs `swapoff -a`, because WSL attaches swap before systemd starts: by default, and even with `swap=0` in `.wslconfig` |
 | `/etc/systemd/system/make-root-rshared.service` (`wsl`) | Runs `mount --make-rshared /` before `sysinit.target`, backing up the `[boot]` command, for bind mounts with shared or slave propagation |
@@ -110,7 +111,7 @@ flowchart TD
     docker -->|then| virsh["virtualisation: virsh net-autostart default, usermod -aG libvirt, mask finalrd and iscsid"]
     virsh -->|then| shells["users: usermod -s for root"]
     shells -->|then| prep["git: mkdir workspaces"]
-    prep -->|runuser -l| tools["development: uv, pulumi, biome, nvm, Node.js LTS, claude, ant"]
+    prep -->|runuser -l| tools["development: uv, biome, nvm, Node.js LTS, claude, ant"]
     tools -->|runuser -l| ext["vscode, github-cli: code --install-extension, gh extension install"]
     ext -->|runuser -l| userinstall["dotfiles: install.sh as the user"]
     userinstall -->|runuser -l root| rootinstall["dotfiles: install.sh as root"]
@@ -120,13 +121,13 @@ flowchart TD
 - `virtualisation` masks `finalrd.service` and `iscsid.socket`. They come from `open-iscsi`, which libvirt's iSCSI storage driver brings in only as a recommend, so a fresh instance doesn't have them. The masks keep them off if a later install brings them in: `iscsid.socket` binds an abstract socket that clashes between instances (see [Testing](testing.md#running-beside-another-instance)), and `finalrd` sets up a pivot root for shutdown that a WSL instance doesn't need.
 - `development` installs the current Node.js LTS with nvm, under `bash`, and makes `lts/*` nvm's default, for the user only. The dotfiles' zsh loads nvm in interactive shells, which puts `node` and `npm` on `PATH` there.
 - Root's `usermod -s` runs only when `/usr/bin/zsh` is executable, so a failed package install can't leave a login shell that doesn't exist. Root's shell is set before root's install, so the zsh module's `$SHELL` check sees zsh and doesn't warn.
-- The user's install puts `~/.local/bin` and `~/.pulumi/bin` on `PATH` itself, because `~/.zshenv` doesn't exist yet. Without that, `install.sh` can't find `claude` and skips the claude module.
+- The user's install puts `~/.local/bin` on `PATH` itself, because `~/.zshenv` doesn't exist yet. Without that, `install.sh` can't find `claude` and skips the claude module.
 - Root's install uses the absolute path `/home/<user>/workspaces/...`, because `~` under `runuser -l root` is `/root`.
 
 ## Interfaces
 
 - **Windows tools:** `runcmd` links `code`, `op`, `ssh`, `ssh-add` and `clip` from fixed paths under `/mnt/c/` into `/usr/local/bin/`. A link to a missing program is left dangling.
-- **The dotfiles:** the user-data clones [`froazin/dotfiles`](https://github.com/froazin/dotfiles) and expects [`src/install.sh`](https://github.com/froazin/dotfiles/blob/main/src/install.sh) at a fixed path in it, and `~/.zshenv` from its [zsh module](https://github.com/froazin/dotfiles/blob/main/docs/zsh/overview.md) to put `~/.local/bin` and `~/.pulumi/bin` on `PATH` later. `~/.zshenv` also exports `BROWSER=/usr/local/bin/start` when that file is executable.
+- **The dotfiles:** the user-data clones [`froazin/dotfiles`](https://github.com/froazin/dotfiles) and expects [`src/install.sh`](https://github.com/froazin/dotfiles/blob/main/src/install.sh) at a fixed path in it, and `~/.zshenv` from its [zsh module](https://github.com/froazin/dotfiles/blob/main/docs/zsh/overview.md) to put `~/.local/bin` on `PATH` later. `~/.zshenv` also exports `BROWSER=/usr/local/bin/start` when that file is executable.
 - **Workspaces:** `~/workspaces/<host>/<owner>/<repo>` is the layout the zsh `ws` picker reads. The user-data clones nvm and the dotfiles there.
 
 ## Errors and logging
@@ -140,9 +141,9 @@ flowchart TD
 
 - The repository is public. The fragments hold no personal usernames, emails, signing keys, hostnames or `/mnt/c/Users/<name>/` paths: they come from the user's private meta-data. The only personal account name in them is the dotfiles' repository URL.
 - Only validated meta-data values reach shell commands. `username` is the exception: it's trusted as written (see [WSL meta-data](meta-data.md#limits)).
-- The Docker and GitHub CLI apt keys are embedded in `docker` and `github-cli`, with their fingerprints in comments, rather than fetched at boot.
+- The Docker, GitHub CLI and HashiCorp apt keys are embedded in `docker`, `github-cli` and `hashicorp`, with their fingerprints in comments, rather than fetched at boot. HashiCorp rotated its key in September 2026, and the embedded one expires on 8 September 2031.
 - The `docker` group lets its members run containers as root through dockerd, so it's root-equivalent. It adds nothing for the user, who has passwordless sudo.
-- `uv`, `pulumi`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user, and nvm is cloned over HTTPS and its `install.sh` run as the user, then downloads Node.js from nodejs.org. Their integrity rests on those hosts and TLS.
+- `uv`, Biome, Claude Code and `ant` are fetched over HTTPS and run as the user, and nvm is cloned over HTTPS and its `install.sh` run as the user, then downloads Node.js from nodejs.org. Their integrity rests on those hosts and TLS.
 - `/usr/local/bin/start` passes its target to PowerShell in an environment variable through `WSLENV`, never in the command, so the target is never parsed as code.
 - The user named by `username`, or `wsluser`, gets passwordless sudo, and their password is locked.
 
@@ -154,6 +155,7 @@ flowchart TD
 - **The `docker` group, not rootless Docker.** A rootful daemon outlives login sessions and doesn't depend on uid 1000's user manager, which clashes between instances (see [Testing](testing.md#running-beside-another-instance)). VS Code Dev Containers documents the `docker` group, and the group gives the user nothing sudo doesn't.
 - **`ip-forward-no-drop`.** dockerd sets the forwarding policy to drop only when it has to turn IP forwarding on itself, so without the option the policy would depend on whether libvirt's NAT network started first.
 - **Native cloud-init modules over custom scripts.** Files, users, apt sources and packages use their modules. `runcmd` holds only what has no module.
+- **Terraform and Packer from HashiCorp's apt repository.** Neither has an installer that updates itself, and Ubuntu doesn't package them, so apt updates them with everything else, for the user and root alike.
 - **Installers run as the user** with `runuser -l`, so the tools live in the user's home and update themselves. nvm is cloned and checked out at its newest tag, and `ant` is unpacked with `tar -m` so zsh notices the new binary and regenerates its completion.
 - **Root's shell through `usermod`.** `users:` skips existing users, root included, and would lock root's password.
 - **Windows tools by link, not the Windows `PATH`.** With the Windows `PATH` appended, `xdg-open` finds `explorer.exe` and bypasses `$BROWSER`. The links bring in only the five tools listed.
@@ -173,6 +175,7 @@ Only a throwaway instance, as [Testing](testing.md) describes, exercises the dat
 - cloud-init finishes with a recoverable error, "Failed to wait for network", on every instance. The user-data is a MIME multipart file, not plain cloud-config, so cloud-init waits for the network at the start of its network stage by starting `systemd-networkd-wait-online.service`, which Ubuntu's WSL image masks. `cloud-init status --long` lists it, and nothing else is affected (observed with the earlier single Jinja file; cloud-init's `_should_wait_via_user_data` waits for any user-data that isn't plain cloud-config).
 - The Windows tool paths are fixed. A tool installed elsewhere gets a dangling link.
 - `ant`'s architecture is chosen only for `x86_64` and `aarch64`.
+- HashiCorp's apt repository serves only the Ubuntu releases it supports, such as 24.04 and 26.04, and adds a new release some time after it comes out. On a release it doesn't serve yet, such as 26.10 in November 2026, `apt update` fails for that source, and cloud-init reports an error.
 - WSL instances share one VM, with its cgroup tree, network namespace and `binfmt_misc` table. Two instances built from this config clash over uid 1000's user manager, libvirt's `default` network, dockerd's bridge and firewall rules (inferred) and other units, and stopping one can break Windows interop in the other. [Testing](testing.md#running-beside-another-instance) lists what was observed and how to recover.
 - Docker Desktop's WSL integration, when it's on for the instance, adds Desktop's own `docker` CLI and socket. Docker says running Desktop beside a Docker Engine installed in the distribution can cause conflicts.
 - `node` and `npm` are on `PATH` only in shells that load nvm, such as the dotfiles' interactive zsh. Scripts run with `zsh -c` or `sh` don't get them.
@@ -187,3 +190,5 @@ Only a throwaway instance, as [Testing](testing.md) describes, exercises the dat
 - https://docs.docker.com/engine/install/ubuntu/
 - https://docs.docker.com/engine/network/packet-filtering-firewalls/
 - https://docs.docker.com/desktop/features/wsl/
+- https://developer.hashicorp.com/terraform/install
+- https://www.hashicorp.com/en/trust/security
